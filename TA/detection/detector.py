@@ -1,14 +1,31 @@
-from ultralytics import YOLO
+import os
 import cv2
 import numpy as np
 from datetime import datetime
+from utils import resource_path
+from ultralytics import YOLO
 
-model = YOLO('best.pt')
+
+model = None
+
 
 label_colors = {
-    0: (128, 0, 0),    # fragment_inside → hijau
-    1: (0, 0, 139),    # fragment_outside → merah
+    0: (128, 0, 0),    # fragment_inside → merah tua
+    1: (0, 0, 139),    # fragment_outside → biru tua
 }
+
+def get_model():
+    global model
+    if model is None:
+        model_path = resource_path("best.pt")
+        model = YOLO(model_path)
+    return model
+
+def get_output_folder():
+    output_folder = os.path.join(os.getcwd(), "assets")
+    if not os.path.exists(output_folder):
+        os.makedirs(output_folder)
+    return output_folder
 
 def run_detection(img_path, edge_colors=None, centroid_colors=None, alpha=0.5):
     """
@@ -17,6 +34,12 @@ def run_detection(img_path, edge_colors=None, centroid_colors=None, alpha=0.5):
     alpha: float, opacity mask overlay [0..1]
     """
     img = cv2.imread(img_path)
+    if img is None:
+        raise ValueError(f"Gagal membaca gambar: {img_path}")
+
+    
+    model = get_model()
+
     
     results = model(img)
     result = results[0]
@@ -32,13 +55,10 @@ def run_detection(img_path, edge_colors=None, centroid_colors=None, alpha=0.5):
             m_bool = m.astype(bool)
             label = int(labels[idx])
 
-            default_mask_color = (255, 255, 255)
-            mask_color = label_colors.get(label, default_mask_color)
-
+            mask_color = label_colors.get(label, (255, 255, 255))  # Default putih
             mask_img = np.zeros_like(img_mask_only, dtype=np.uint8)
             mask_img[m_bool] = mask_color
-            
-            # Gunakan parameter alpha untuk opacity overlay
+
             img_mask_only = cv2.addWeighted(img_mask_only, 1, mask_img, alpha, 0)
 
             m_uint8 = (m * 255).astype(np.uint8)
@@ -51,11 +71,13 @@ def run_detection(img_path, edge_colors=None, centroid_colors=None, alpha=0.5):
             if M["m00"] != 0:
                 cx = int(M["m10"] / M["m00"])
                 cy = int(M["m01"] / M["m00"])
-
                 centroid_color = centroid_colors.get(label, (0, 0, 0)) if centroid_colors else (0, 0, 0)
                 cv2.circle(img_mask_only, (cx, cy), 4, centroid_color, -1)
 
-    output_path = f"assets/detected_mask_only_{datetime.now().strftime('%Y%m%d%H%M%S')}.jpg"
+    
+    output_folder = get_output_folder()
+    filename = f"detected_mask_only_{datetime.now().strftime('%Y%m%d%H%M%S')}.jpg"
+    output_path = os.path.join(output_folder, filename)
     cv2.imwrite(output_path, img_mask_only)
 
     fragment_inside = int(np.sum(labels == 0))

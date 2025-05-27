@@ -26,21 +26,32 @@ class HeaderView(QWidget):
         # === Left Logo ===
         left_layout = QHBoxLayout()
         logo1 = QLabel()
-        logo1.setPixmap(QPixmap(resource_path("material/logo-kemenperin.png")).scaledToHeight(40, Qt.SmoothTransformation))
+        logo1.setPixmap(QPixmap(resource_path("material/logo-kemenperin.png")).scaledToHeight(87, Qt.SmoothTransformation))
         left_layout.addWidget(logo1)
 
         logo2 = QLabel()
-        logo2.setPixmap(QPixmap(resource_path("material/logo-bbk.png")).scaledToHeight(40, Qt.SmoothTransformation))
+        logo2.setPixmap(QPixmap(resource_path("material/logo-bbk.png")).scaledToHeight(65, Qt.SmoothTransformation))
         logo2.setContentsMargins(14, 0, 0, 0)
         left_layout.addWidget(logo2)
 
         grid.addLayout(left_layout, 0, 0)
 
-        # === Title Center ===
-        title = QLabel("Laboratorium Pengujian Kaca")
-        title.setAlignment(Qt.AlignCenter)
+        
+        title = QLabel("FragSense")
         title.setStyleSheet("font-size: 20px; font-weight: bold;")
-        grid.addWidget(title, 0, 1)
+
+        
+        title_container = QWidget()
+        title_layout = QHBoxLayout(title_container)
+        title_layout.addStretch()
+        title_layout.addWidget(title)     
+        title_layout.addStretch()         
+
+        
+        title_layout.setContentsMargins(0, 0, 0, 0)
+
+       
+        grid.addWidget(title_container, 0, 1)
 
         # === Right Button Riwayat ===
         right_layout = QHBoxLayout()

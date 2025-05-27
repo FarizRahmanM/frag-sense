@@ -200,8 +200,20 @@ class MainView(QWidget):
     def capture_image(self):
         ret, frame = self.capture.read()
         if ret:
-            image_path = "captured_frame.png"
+            # Buat folder "captured" jika belum ada
+            captured_folder = os.path.join(os.getcwd(), "captured")
+            if not os.path.exists(captured_folder):
+                os.makedirs(captured_folder)
+
+            # Buat nama file unik dengan timestamp
+            timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+            filename = f"captured_{timestamp}.png"
+            image_path = os.path.join(captured_folder, filename)
+
+            # Simpan gambar
             cv2.imwrite(image_path, frame)
+
+            # Tambahkan ke UI
             self.add_card(image_path)
 
         self.stop_camera()

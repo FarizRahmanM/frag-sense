@@ -9,7 +9,7 @@ from utils import resource_path
 
 class CardViewModel:
     def __init__(self,id=None, test_name=None, date=None, time=None, total_fragments=0, image=None,
-                 tester_name=None, fragment_inside=0, fragment_outside=0):
+                 tester_name=None, fragment_inside=0, fragment_outside=0, status=""):
         self.id = id
         self.test_name = test_name
         self.test_date = date or datetime.date.today().strftime("%d %B %Y")
@@ -19,6 +19,7 @@ class CardViewModel:
         self.tester_name = tester_name
         self.fragment_inside = fragment_inside
         self.fragment_outside = fragment_outside
+        self.status = status
 
     @property
     def total_fragments(self):
@@ -30,7 +31,7 @@ class CardWidget(QWidget):
         super().__init__()
         self.vm = vm
 
-        self.setFixedHeight(450)
+        self.setFixedHeight(500)
         self.layout = QVBoxLayout(self)
         self.setLayout(self.layout)
 
@@ -38,7 +39,7 @@ class CardWidget(QWidget):
         outer_layout = QGridLayout()
         outer.setLayout(outer_layout)
         outer.setStyleSheet("background-color: #F0F0F0; border-radius: 15px;")
-        outer.setFixedSize(750, 350)
+        outer.setFixedSize(800, 400)
 
         # Kiri: Gambar
         image_label = QLabel()
@@ -102,6 +103,10 @@ class CardWidget(QWidget):
         self.total_fragmen_label.setAlignment(Qt.AlignCenter)
         self.total_fragmen_label.setStyleSheet("font-size: 25px; font-weight: bold;")
 
+        self.status_label = QLabel("")
+        self.status_label.setAlignment(Qt.AlignCenter)
+        self.status_label.setStyleSheet("font-size: 20px; font-weight: bold;")
+
         # Waktu
         waktu_layout = QVBoxLayout()
         waktu_layout.addWidget(QLabel(self.vm.test_date))
@@ -122,8 +127,11 @@ class CardWidget(QWidget):
         form_layout.addSpacing(10)
         form_layout.addWidget(total_label)
         form_layout.addWidget(self.total_fragmen_label)
+        form_layout.addWidget(self.status_label)
         form_layout.addSpacing(15)
         form_layout.addLayout(waktu_layout)
+
+
 
         # Pasang ke grid
         outer_layout.addWidget(left_widget, 0, 0)
@@ -131,12 +139,22 @@ class CardWidget(QWidget):
         self.update_counts()
         self.layout.addWidget(outer)
 
+        
+
     def update_counts(self):
         total = self.vm.fragment_inside + 0.5 * self.vm.fragment_outside
         self.fragmen_inside_count.setText(str(self.vm.fragment_inside))
         self.fragmen_outside_count.setText(str(self.vm.fragment_outside))
         self.total_fragmen_label.setText(f"{total:.1f}")
         self.vm.jumlah_fragmen = total
+
+        # Update status label
+        if 40 <= total <= 400:
+            self.status_label.setText("PASS")
+            self.status_label.setStyleSheet("color: green; font-size: 20px; font-weight: bold;")
+        else:
+            self.status_label.setText("FAIL")
+            self.status_label.setStyleSheet("color: red; font-size: 20px; font-weight: bold;")
 
     def increment_fragmen_inside(self):
         self.vm.fragment_inside += 1
@@ -155,6 +173,8 @@ class CardWidget(QWidget):
         if self.vm.fragment_outside > 0:
             self.vm.fragment_outside -= 1
         self.update_counts()
+
+    
 
     def card_data(self):
         self.vm.test_name = self.input_uji.text()

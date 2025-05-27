@@ -8,6 +8,7 @@ from ui.component.delete_view import DeleteDialog
 from services.card_service import CardService
 import datetime
 from typing import List  # opsional, jika kamu mau
+from utils import resource_path
 
 
 class ResultView(QWidget):
@@ -87,18 +88,23 @@ class ResultView(QWidget):
             fragment_outside = fragments_outside[i]
             total_fragments = fragment_inside + (fragment_outside * 0.5)
 
-            card_vm = CardViewModel(
-                test_name=f"Hasil Deteksi {i + 1}",
-                date=test_date,
-                time=test_time,
-                total_fragments=total_fragments,
-                image=image_path,
-                fragment_inside=fragment_inside,
-                fragment_outside=fragment_outside,
-            )
+            status = "PASS" if 40 <= total_fragments <= 400 else "FAIL"
 
+            image_path_full = resource_path(image_path)  # satu per satu
+
+            card_vm = CardViewModel(
+            test_name=f"Hasil Deteksi {i + 1}",
+            date=test_date,
+            time=test_time,
+            total_fragments=total_fragments,
+            image=image_path_full,
+            fragment_inside=fragment_inside,
+            fragment_outside=fragment_outside,
+            status=status  # Tambahkan ini
+        )
             # Simpan data model ke service
             CardService.instance().add_card(card_vm)
+
 
         self.cards = CardService.instance().cards
         self.populate_cards()

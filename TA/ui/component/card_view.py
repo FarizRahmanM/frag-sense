@@ -191,7 +191,7 @@ class CardWidget(QWidget):
         dialog_layout = QVBoxLayout(dialog)
 
         pixmap = QPixmap(resource_path(self.vm.image_path))
-        enlarged_pixmap = pixmap.scaled(pixmap.width()*1.5, pixmap.height()*1.5, Qt.KeepAspectRatio)
+        enlarged_pixmap = pixmap.scaled(pixmap.width(), pixmap.height(), Qt.KeepAspectRatio)
 
         image_label = QLabel()
         image_label.setPixmap(enlarged_pixmap)

@@ -1,14 +1,23 @@
 import datetime
 from PySide6.QtWidgets import (
-    QWidget, QVBoxLayout, QGridLayout, QLabel, QPushButton, QLineEdit, QHBoxLayout
+    QWidget, QVBoxLayout, QGridLayout, QLabel, QPushButton, QLineEdit,
+    QHBoxLayout, QDialog
 )
 from PySide6.QtGui import QPixmap
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, Signal
 from utils import resource_path
 
 
+# Label custom agar bisa diklik
+class ClickableLabel(QLabel):
+    clicked = Signal(object)
+
+    def mousePressEvent(self, event):
+        self.clicked.emit(event)
+
+
 class CardViewModel:
-    def __init__(self,id=None, test_name=None, date=None, time=None, total_fragments=0, image=None,
+    def __init__(self, id=None, test_name=None, date=None, time=None, total_fragments=0, image=None,
                  tester_name=None, fragment_inside=0, fragment_outside=0, status=""):
         self.id = id
         self.test_name = test_name
@@ -42,14 +51,17 @@ class CardWidget(QWidget):
         outer.setFixedSize(800, 400)
 
         # Kiri: Gambar
-        image_label = QLabel()
+        self.image_label = ClickableLabel()
         pixmap = QPixmap(resource_path(self.vm.image_path)) if self.vm.image_path else QPixmap()
-        image_label.setPixmap(pixmap.scaledToHeight(220))
-        image_label.setFixedWidth(445)
-        image_label.setAlignment(Qt.AlignLeft | Qt.AlignTop)
+        self.image_label.setPixmap(pixmap.scaledToHeight(220))
+        self.image_label.setFixedWidth(445)
+        self.image_label.setAlignment(Qt.AlignLeft | Qt.AlignTop)
+
+        # Koneksi klik ke pop-up
+        self.image_label.clicked.connect(self.show_image_popup)
 
         left_container = QVBoxLayout()
-        left_container.addWidget(image_label)
+        left_container.addWidget(self.image_label)
         left_widget = QWidget()
         left_widget.setLayout(left_container)
         left_widget.setFixedWidth(445)
@@ -65,7 +77,7 @@ class CardWidget(QWidget):
         label_penguji = QLabel("Nama Penguji")
         self.input_penguji = QLineEdit(self.vm.tester_name or "")
 
-        # Fragmen Inside
+        # Fragmen Dalam
         fragmen_inside_label = QLabel("Fragmen Dalam")
         self.fragmen_inside_count = QLabel(str(self.vm.fragment_inside))
         self.fragmen_inside_count.setAlignment(Qt.AlignCenter)
@@ -81,7 +93,7 @@ class CardWidget(QWidget):
         fragmen_inside_layout.addWidget(self.fragmen_inside_count)
         fragmen_inside_layout.addWidget(inside_plus_btn)
 
-        # Fragmen Outside
+        # Fragmen Tepi
         fragmen_outside_label = QLabel("Fragmen Tepi")
         self.fragmen_outside_count = QLabel(str(self.vm.fragment_outside))
         self.fragmen_outside_count.setAlignment(Qt.AlignCenter)
@@ -112,7 +124,7 @@ class CardWidget(QWidget):
         waktu_layout.addWidget(QLabel(self.vm.test_date))
         waktu_layout.addWidget(QLabel(self.vm.test_time))
 
-        # Tambah ke layout kanan
+        # Tambahkan ke form layout
         form_layout.addWidget(label_uji)
         form_layout.addWidget(self.input_uji)
         form_layout.addSpacing(10)
@@ -131,15 +143,11 @@ class CardWidget(QWidget):
         form_layout.addSpacing(15)
         form_layout.addLayout(waktu_layout)
 
-
-
         # Pasang ke grid
         outer_layout.addWidget(left_widget, 0, 0)
         outer_layout.addLayout(form_layout, 0, 1)
         self.update_counts()
         self.layout.addWidget(outer)
-
-        
 
     def update_counts(self):
         total = self.vm.fragment_inside + 0.5 * self.vm.fragment_outside
@@ -148,7 +156,7 @@ class CardWidget(QWidget):
         self.total_fragmen_label.setText(f"{total:.1f}")
         self.vm.jumlah_fragmen = total
 
-        # Update status label
+        # Update status
         if 40 <= total <= 400:
             self.status_label.setText("PASS")
             self.status_label.setStyleSheet("color: green; font-size: 20px; font-weight: bold;")
@@ -174,12 +182,27 @@ class CardWidget(QWidget):
             self.vm.fragment_outside -= 1
         self.update_counts()
 
-    
+    def show_image_popup(self, event):
+        if not self.vm.image_path:
+            return
+
+        dialog = QDialog(self)
+        dialog.setWindowTitle("Perbesar Gambar")
+        dialog_layout = QVBoxLayout(dialog)
+
+        pixmap = QPixmap(resource_path(self.vm.image_path))
+        enlarged_pixmap = pixmap.scaled(pixmap.width(), pixmap.height(), Qt.KeepAspectRatio)
+
+        image_label = QLabel()
+        image_label.setPixmap(enlarged_pixmap)
+        image_label.setAlignment(Qt.AlignCenter)
+
+        dialog_layout.addWidget(image_label)
+        dialog.setStyleSheet("background-color: white;")
+        dialog.exec()
 
     def card_data(self):
         self.vm.test_name = self.input_uji.text()
         self.vm.tester_name = self.input_penguji.text()
         print(f"DEBUG: Saving Card: test_name={self.vm.test_name}, tester_name={self.vm.tester_name}, inside={self.vm.fragment_inside}, outside={self.vm.fragment_outside}")
         return self.vm
-    
-    

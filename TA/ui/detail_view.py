@@ -1,6 +1,7 @@
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QLabel, QPushButton, QHBoxLayout, QScrollArea,
-    QFrame, QGridLayout, QStackedLayout, QDialog, QListWidget, QListWidgetItem
+    QFrame, QGridLayout, QStackedLayout, QDialog, QListWidget, QListWidgetItem,
+    QFileDialog, QMessageBox,QSpacerItem, QSizePolicy
 )
 from PySide6.QtCore import Qt, Slot
 from PySide6.QtGui import QCursor
@@ -15,6 +16,7 @@ from model.database import delete_detection
 from ui.history_view import HistoryView
 from utils import resource_path
 import os
+import pandas as pd
 
 
 class DetailView(QWidget):
@@ -74,9 +76,13 @@ class DetailView(QWidget):
         layout.addLayout(content_layout)
 
         # Action buttons
+        # Buat layout utama tombol
         button_layout = QHBoxLayout()
-        button_layout.setSpacing(20)  # Jarak antar tombol
-        button_layout.setAlignment(Qt.AlignCenter)  # Biar tombol di tengah
+        button_layout.setContentsMargins(40, 10, 40, 10)  # Margin kiri-kanan agar rapi
+
+        # Layout untuk tombol kiri
+        left_buttons = QHBoxLayout()
+        left_buttons.setSpacing(20)
 
         delete_btn = QPushButton("Hapus")
         delete_btn.setStyleSheet("color: #FF0000; background: white; padding: 8px; font-weight: 600;")
@@ -86,9 +92,25 @@ class DetailView(QWidget):
         save_btn.setStyleSheet("color: white; background: #3B89FF; padding: 8px; font-weight: 600;")
         save_btn.clicked.connect(self.save_and_navigate)
 
-        button_layout.addWidget(delete_btn)
-        button_layout.addWidget(save_btn)
+        left_buttons.addWidget(delete_btn)
+        left_buttons.addWidget(save_btn)
 
+        # Spacer di tengah untuk mendorong tombol kanan ke ujung
+        spacer = QSpacerItem(40, 20, QSizePolicy.Expanding, QSizePolicy.Minimum)
+
+        # Layout untuk tombol kanan
+        right_buttons = QHBoxLayout()
+        export_btn = QPushButton("Unduh Data")
+        export_btn.setStyleSheet("color: black; background: #C2E7FF; padding: 8px; font-weight: 600;")
+        export_btn.clicked.connect(self.export_to_excel)
+        right_buttons.addWidget(export_btn)
+
+        # Tambahkan ke layout utama
+        button_layout.addLayout(left_buttons)
+        button_layout.addItem(spacer)
+        button_layout.addLayout(right_buttons)
+
+        # Tambahkan ke layout utama window
         layout.addLayout(button_layout)
         layout.addStretch()
 
@@ -169,3 +191,39 @@ class DetailView(QWidget):
         self.fragment_list.setVisible(True)
 
     
+    @Slot()
+    def export_to_excel(self):
+        if not self.selected_card:
+            QMessageBox.warning(self, "Export Gagal", "Tidak ada data yang bisa diekspor.")
+            return
+
+        file_path, _ = QFileDialog.getSaveFileName(
+            self,
+            "Simpan sebagai Excel",
+            "hasil_pengujian.xlsx",
+            "Excel Files (*.xlsx)"
+        )
+
+        if not file_path:
+            return
+
+        try:
+            # Siapkan data card untuk satu baris (tanpa path gambar)
+            data = [{
+                "Nama Pengujian": self.selected_card.test_name,
+                "Nama Penguji": self.selected_card.tester_name,
+                "Tanggal": self.selected_card.test_date,
+                "Waktu": self.selected_card.test_time,
+                "Jumlah Fragmen (Dalam)": self.selected_card.fragment_inside,
+                "Jumlah Fragmen (Luar)": self.selected_card.fragment_outside,
+                "Jumlah Fragmen (Total)": round(
+                    self.selected_card.fragment_inside + (self.selected_card.fragment_outside / 2), 1
+                )
+            }]
+
+            df = pd.DataFrame(data)
+            df.to_excel(file_path, index=False)
+
+            QMessageBox.information(self, "Export Berhasil", f"Data berhasil diekspor ke:\n{file_path}")
+        except Exception as e:
+            QMessageBox.critical(self, "Export Gagal", f"Terjadi kesalahan saat ekspor:\n{str(e)}")

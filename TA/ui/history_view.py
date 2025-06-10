@@ -1,5 +1,6 @@
-from PySide6.QtWidgets import QWidget, QVBoxLayout, QLabel, QScrollArea
+from PySide6.QtWidgets import QWidget, QVBoxLayout, QLabel, QScrollArea, QPushButton, QFileDialog, QMessageBox, QHBoxLayout, QSizePolicy
 from PySide6.QtCore import Qt, Slot
+import pandas as pd
 from ui.component.header_view import HeaderView
 from ui.component.table_view import TableWidget
 from ui.component.delete_view import DeleteDialog
@@ -34,9 +35,23 @@ class HistoryView(QWidget):
         back_btn.mousePressEvent = self.back_button_click
         content_layout.addWidget(back_btn)
 
+        header_layout = QHBoxLayout()
         title = QLabel("Riwayat Pengujian")
         title.setStyleSheet("font-size: 24px; font-weight: bold;")
-        content_layout.addWidget(title)
+        title.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+
+        export_btn = QPushButton("Unduh Data")
+        export_btn.setFixedWidth(150)
+        export_btn.setStyleSheet(
+        "color: black; background: #C2E7FF; padding: 8px; font-weight: bold;"
+        )
+        export_btn.clicked.connect(self.export_selected_to_excel)
+
+        header_layout.addWidget(title)
+        header_layout.addWidget(export_btn)
+
+        # Tambahkan ke layout utama konten
+        content_layout.addLayout(header_layout)
 
         raw_cards = get_all_detections()
         card_viewmodels = [
@@ -134,3 +149,34 @@ class HistoryView(QWidget):
             
     def refresh(self):
         self.load_data()
+
+    def export_selected_to_excel(self):
+        selected_cards = self.table.get_selected_cards()
+
+        if not selected_cards:
+            QMessageBox.warning(self, "Tidak Ada Data", "Pilih minimal satu baris untuk diekspor.")
+            return
+
+        path, _ = QFileDialog.getSaveFileName(self, "Simpan File", "riwayat_pengujian.xlsx", "Excel Files (*.xlsx)")
+        if not path:
+            return
+
+        try:
+            data = []
+            for card in selected_cards:
+                data.append({
+                    "Nama Pengujian": card.test_name,
+                    "Nama Penguji": card.tester_name,
+                    "Tanggal": card.test_date,
+                    "Waktu": card.test_time,
+                    "Jumlah Fragmen (Dalam)": card.fragment_inside,
+                    "Jumlah Fragmen (Luar)": card.fragment_outside,
+                    "Jumlah Fragmen (Total)": round(card.fragment_inside + (card.fragment_outside / 2), 1),
+                })
+
+            df = pd.DataFrame(data)
+            df.to_excel(path, index=False)
+
+            QMessageBox.information(self, "Sukses", f"Data berhasil diekspor ke:\n{path}")
+        except Exception as e:
+            QMessageBox.critical(self, "Gagal Ekspor", f"Terjadi kesalahan saat ekspor:\n{e}")

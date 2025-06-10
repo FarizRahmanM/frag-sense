@@ -100,7 +100,7 @@ class ResultView(QWidget):
             image=image_path_full,
             fragment_inside=fragment_inside,
             fragment_outside=fragment_outside,
-            status=status  # Tambahkan ini
+            status=status  
         )
             # Simpan data model ke service
             CardService.instance().add_card(card_vm)
@@ -163,12 +163,21 @@ class ResultView(QWidget):
         # Lazy import agar PyInstaller tidak otomatis include HistoryView kecuali dipakai
         from ui.history_view import HistoryView
 
+        # Simpan semua card yang ada di carousel
         for i in range(self.carousel.count()):
             container = self.carousel.widget(i)
             card_widget = container.layout().itemAt(1).widget()  # Ambil CardWidget dari container
             card_vm = card_widget.card_data()
             CardService.instance().save_to_database(card_vm)
 
+        # Hapus semua card dari service dan UI
+        CardService.instance().cards.clear()  # Kosongkan daftar card
+        self.clear_stack()  # Bersihkan tampilan card di carousel
+        self.cards = []  # Pastikan properti lokal juga kosong
+        self.current_index = 0
+        self.update_arrow_visibility()
+
+        # Arahkan ke halaman riwayat setelah simpan
         if self.main_window:
             self.main_window.navigate(HistoryView(self.main_window))
 

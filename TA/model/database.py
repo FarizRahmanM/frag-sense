@@ -20,12 +20,13 @@ class DetectionResult(Base):
     fragment_outside = Column(Integer)
     total_fragment= Column(Integer)
     image_path = Column(String(255))
+    last_edited = Column(DateTime, default=datetime.now, onupdate=datetime.now) 
 
 Base.metadata.create_all(engine)
 
 # CRUD functions
 
-def create_detection(test_name, tester_name, fragment_inside, fragment_outside, total_fragment, image_path):
+def create_detection(test_name, tester_name, fragment_inside, fragment_outside, total_fragment, image_path, last_edited=None):
     session = Session()
     new_detection = DetectionResult(
         test_name=test_name,
@@ -34,7 +35,8 @@ def create_detection(test_name, tester_name, fragment_inside, fragment_outside, 
         fragment_inside=fragment_inside,
         fragment_outside=fragment_outside,
         total_fragment=total_fragment,
-        image_path=image_path
+        image_path=image_path,
+        last_edited=last_edited or datetime.now()
     )
     session.add(new_detection)
     session.commit()
@@ -63,7 +65,8 @@ def update_detection(card_model):
             detection.fragment_inside = card_model.fragment_inside
             detection.fragment_outside = card_model.fragment_outside
             detection.total_fragment = card_model.total_fragments
-            detection.image_path = card_model.image_path  
+            detection.image_path = card_model.image_path
+            detection.last_edited = datetime.now()   
             session.commit()
     finally:
         session.close()

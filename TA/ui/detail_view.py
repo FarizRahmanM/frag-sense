@@ -128,7 +128,7 @@ class DetailView(QWidget):
             CardService.instance().update_to_db(edited_card)
 
             # Navigasi ke halaman riwayat
-            self.main_window.navigate(HistoryView(main_window=self.main_window))
+            self.main_window.show_history()
             
 
     @Slot()
@@ -172,7 +172,7 @@ class DetailView(QWidget):
 
             # Navigasi ke HistoryView
             if self.main_window:
-                self.main_window.navigate(HistoryView(main_window=self.main_window))
+                self.main_window.show_history()
 
             self.card_to_delete = None
             self.delete_dialog.close()
@@ -218,7 +218,8 @@ class DetailView(QWidget):
                 "Jumlah Fragmen (Luar)": self.selected_card.fragment_outside,
                 "Jumlah Fragmen (Total)": round(
                     self.selected_card.fragment_inside + (self.selected_card.fragment_outside / 2), 1
-                )
+                ),
+                "Path Gambar": self.selected_card.image_path
             }]
 
             df = pd.DataFrame(data)

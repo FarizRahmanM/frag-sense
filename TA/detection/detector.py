@@ -69,6 +69,7 @@ def run_detection(img_path, edge_colors=None, centroid_colors=None, alpha=0.5):
                 centroid_color = centroid_colors.get(label, (0, 0, 0)) if centroid_colors else (0, 0, 0)
                 cv2.circle(img_mask_only, (cx, cy), 4, centroid_color, -1)
 
+
     output_folder = get_output_folder()
     filename = f"detected_mask_only_{datetime.now().strftime('%Y%m%d%H%M%S')}.jpg"
     output_path = os.path.join(output_folder, filename)
@@ -77,4 +78,4 @@ def run_detection(img_path, edge_colors=None, centroid_colors=None, alpha=0.5):
     fragment_inside = int(np.sum(labels == 0))
     fragment_outside = int(np.sum(labels == 1))
 
-    return output_path, fragment_inside, fragment_outside
+    return output_path, fragment_inside, fragment_outside 

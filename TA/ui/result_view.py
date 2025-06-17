@@ -61,25 +61,32 @@ class ResultView(QWidget):
         main_layout.addLayout(middle_layout)
 
         # Tombol simpan dan hapus
-        button_layout = QVBoxLayout()
-        button_layout.setAlignment(Qt.AlignTop | Qt.AlignHCenter)
+        main_layout.addStretch()
+
+        # Tombol simpan dan hapus (di tengah horizontal, naik dari bawah)
+        button_layout = QHBoxLayout()
+        button_layout.setSpacing(20)
+        button_layout.setContentsMargins(0, 0, 0, 20)  # beri margin bawah
 
         save_button = QPushButton("Simpan Hasil")
-        save_button.setStyleSheet("padding: 8px; background-color: #3B89FF; color: white; font-weight: 600;")
+        save_button.setStyleSheet("padding: 8px 16px; background-color: #3B89FF; color: white; font-weight: 600;")
         save_button.clicked.connect(self.save_button_click)
-        button_layout.addWidget(save_button)
 
         delete_button = QPushButton("Hapus")
         delete_button.setStyleSheet(
-            "padding: 8px; background-color: white; color: #FF0000; font-weight: 600; border: 1px solid #FF0000;"
+            "padding: 8px 16px; background-color: white; color: #FF0000; font-weight: 600; border: 1px solid #FF0000;"
         )
         delete_button.clicked.connect(self.delete_button_click)
+
+        button_layout.addStretch()
         button_layout.addWidget(delete_button)
+        button_layout.addWidget(save_button)
+        button_layout.addStretch()
 
         main_layout.addLayout(button_layout)
         self.update_arrow_visibility()
 
-    def set_result(self, image_paths: List[str], fragments_inside: List[int], fragments_outside: List[int]):
+    def set_result(self, image_paths: List[str], fragments_inside: List[int], fragments_outside: List[int], last_edited=None):
         test_date = datetime.date.today().strftime("%d %B %Y")
         test_time = datetime.datetime.now().strftime("%H:%M:%S")
 
@@ -100,6 +107,7 @@ class ResultView(QWidget):
             image=image_path_full,
             fragment_inside=fragment_inside,
             fragment_outside=fragment_outside,
+            last_edited=last_edited,
             status=status  
         )
             # Simpan data model ke service

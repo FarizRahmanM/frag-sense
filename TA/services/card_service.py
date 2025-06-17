@@ -25,7 +25,8 @@ class CardService:
                 fragment_inside=card_vm.fragment_inside,
                 fragment_outside=card_vm.fragment_outside,
                 total_fragment=total_fragment,
-                image_path=card_vm.image_path
+                image_path=card_vm.image_path,
+                last_edited=card_vm.last_edited
             )
             print("✅ Data berhasil disimpan ke database.")
         except Exception as e:
@@ -36,6 +37,8 @@ class CardService:
             records = get_all_detections()
             cards = []
             for rec in records:
+                print("DEBUG DB - last_edited:", rec.last_edited)  # ✅ Tambahkan di sini
+
                 card = CardViewModel(
                     id=rec.id,
                     test_name=rec.test_name,
@@ -45,10 +48,11 @@ class CardService:
                     image=rec.image_path,
                     tester_name=rec.tester_name,
                     fragment_inside=rec.fragment_inside,
-                    fragment_outside=rec.fragment_outside
+                    fragment_outside=rec.fragment_outside,
+                    last_edited=rec.last_edited
                 )
                 cards.append(card)
-            return cards
+            return cards    
         except Exception as e:
             print("❌ Gagal mengambil data dari DB:", e)
             return []

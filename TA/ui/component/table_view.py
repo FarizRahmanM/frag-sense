@@ -14,6 +14,8 @@ class TableWidget(QWidget):
         super().__init__()
         self.cards = cards or []
         self.checkbox_map = {}
+        self.card_selection_map = {}
+        self.card_data_map = {}
         self.init_ui()
 
     def init_ui(self):
@@ -77,13 +79,19 @@ class TableWidget(QWidget):
         self.checkbox_map = {}
 
         for card in self.cards:
-            self.add_card(card)
+            card_id = card.id  # <- pakai id unik
+            self.card_data_map[card_id] = card
+
+            if card_id not in self.card_selection_map:
+                self.card_selection_map[card_id] = False
+
+            self.add_card(card, card_id)
 
         # Connect AFTER all checkboxes added
         self.select_all_checkbox.stateChanged.disconnect()
         self.select_all_checkbox.stateChanged.connect(self.toggle_select_all)
 
-    def add_card(self, card):
+    def add_card(self, card, card_id):
         container = QFrame()
         container.setFrameShape(QFrame.StyledPanel)
         container.setMinimumHeight(100)
@@ -101,6 +109,8 @@ class TableWidget(QWidget):
 
         # === Kolom 0: Checkbox ===
         checkbox = QCheckBox()
+        is_checked = self.card_selection_map.get(card_id, False)
+        checkbox.setChecked(is_checked)
         checkbox.setStyleSheet("""
             QCheckBox::indicator {
                 width: 18px;
@@ -114,8 +124,8 @@ class TableWidget(QWidget):
             }
         """)
         grid.addWidget(checkbox, 0, 0, alignment=Qt.AlignCenter)
-        self.checkbox_map[card] = checkbox
-        checkbox.stateChanged.connect(self.update_select_all_state)
+        checkbox.stateChanged.connect(lambda state, c_id=card_id: self.checkbox_state_changed(c_id, state))
+        self.checkbox_map[card_id] = checkbox
 
         # === Kolom 1: Pengujian (Nama & Gambar) ===
         pengujian_layout = QVBoxLayout()
@@ -208,30 +218,27 @@ class TableWidget(QWidget):
         self.cards_layout.addWidget(container)
 
     def get_selected_cards(self):
-        selected = []
-
-        for card, checkbox in self.checkbox_map.items():
-            if checkbox.isChecked():
-                selected.append(card)  # ✅ langsung pakai objek card
-
-        return selected
+        return [self.card_data_map[cid] for cid, selected in self.card_selection_map.items() if selected]
         
     def toggle_select_all(self, state):
-        print(f"toggle_select_all called with state: {state}")
-        print(f"state: {state} (type: {type(state)}), Qt.Checked: {Qt.Checked} (type: {type(Qt.Checked)})")
-        check = (state == 2)
-        print("Check:", check)
-        print("Total checkbox found:", len(self.checkbox_map))
+        check = (state == Qt.Checked.value)
+        print(f"Toggle select all: {check}, checkbox map size: {len(self.checkbox_map)}")
 
-        for checkbox in self.checkbox_map.values():
-            print("Toggling checkbox...")
+        # Update semua status di card_selection_map (semua data)
+        for card_id in self.card_selection_map:
+            self.card_selection_map[card_id] = check
+
+        # Hanya checkbox yang tampil (di halaman aktif) yang bisa diset langsung
+        for card_id, checkbox in self.checkbox_map.items():
             checkbox.blockSignals(True)
             checkbox.setChecked(check)
             checkbox.blockSignals(False)
+
+        self.update_select_all_state(state)
         
-    def update_select_all_state(self, state):
-        all_checked = all(cb.isChecked() for cb in self.checkbox_map.values())
-        any_checked = any(cb.isChecked() for cb in self.checkbox_map.values())
+    def update_select_all_state(self, _):
+        all_checked = all(self.card_selection_map.values())
+        any_checked = any(self.card_selection_map.values())
         print(f"update_select_all_state called: all_checked={all_checked}, any_checked={any_checked}")
 
         self.select_all_checkbox.blockSignals(True)
@@ -242,3 +249,7 @@ class TableWidget(QWidget):
         else:
             self.select_all_checkbox.setCheckState(Qt.Unchecked)
         self.select_all_checkbox.blockSignals(False)
+
+    def checkbox_state_changed(self, card_id, state):
+        self.card_selection_map[card_id] = (state == Qt.Checked)
+        self.update_select_all_state(state)

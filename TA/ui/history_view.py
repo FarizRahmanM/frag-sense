@@ -4,7 +4,7 @@ from PySide6.QtWidgets import (
 )
 from PySide6.QtCore import Qt, Slot
 import pandas as pd
-
+from datetime import datetime
 from ui.component.header_view import HeaderView
 from ui.component.table_view import TableWidget
 from ui.component.delete_view import DeleteDialog
@@ -16,6 +16,9 @@ class HistoryView(QWidget):
     def __init__(self, main_window=None):
         super().__init__()
         self.main_window = main_window
+        self.items_per_page = 20
+        self.current_page = 0
+        self.filtered_cards = []
 
         main_layout = QVBoxLayout(self)
 
@@ -92,6 +95,24 @@ class HistoryView(QWidget):
         self.table.info_requested.connect(self.on_table_info_requested)
         content_layout.addWidget(self.table)
 
+
+        # Navigasi halaman
+        self.pagination_layout = QHBoxLayout()
+        self.prev_btn = QPushButton("← Sebelumnya")
+        self.prev_btn.clicked.connect(self.go_to_prev_page)
+
+        self.next_btn = QPushButton("Selanjutnya →")
+        self.next_btn.clicked.connect(self.go_to_next_page)
+
+        self.page_info = QLabel("")
+        self.page_info.setAlignment(Qt.AlignCenter)
+
+        self.pagination_layout.addWidget(self.prev_btn)
+        self.pagination_layout.addWidget(self.page_info)
+        self.pagination_layout.addWidget(self.next_btn)
+
+        content_layout.addLayout(self.pagination_layout)
+
         # Tambahkan konten ke scroll area
         scroll.setWidget(content)
         main_layout.addWidget(scroll)
@@ -111,6 +132,11 @@ class HistoryView(QWidget):
                 status = "FAIL"
             else:
                 status = "PASS"
+            
+            try:
+                test_time_dt = datetime.fromisoformat(row.last_edited)
+            except ValueError:
+                test_time_dt = datetime.now()
 
             card_viewmodels.append(
                 CardViewModel(
@@ -120,15 +146,16 @@ class HistoryView(QWidget):
                     fragment_inside=row.fragment_inside,
                     fragment_outside=row.fragment_outside,
                     image=row.image_path,
-                    date=row.test_time.strftime("%d %B %Y"),
-                    time=row.test_time.strftime("%H:%M:%S"),
+                    date = test_time_dt.strftime("%d %B %Y"),
+                    time = test_time_dt.strftime("%H:%M:%S"),
                     status=status,
                     last_edited=row.last_edited   # ← Dikirim ke ViewModel
                 )
             )
 
-        self.table.cards = card_viewmodels
-        self.table.populate_cards()
+        self.filtered_cards = card_viewmodels
+        self.current_page = 0
+        self.update_table_view()
 
     @Slot(object)
     def on_table_delete_requested(self, card):
@@ -140,11 +167,15 @@ class HistoryView(QWidget):
         if self.card_to_delete:
             raw_cards = get_all_detections()
             for row in raw_cards:
+                try:
+                    test_time_dt = datetime.fromisoformat(row.last_edited)
+                except ValueError:
+                    test_time_dt = datetime.now()
                 if (
                     row.test_name == self.card_to_delete.test_name and
                     row.tester_name == self.card_to_delete.tester_name and
-                    row.test_time.strftime("%d %B %Y") == self.card_to_delete.test_date and
-                    row.test_time.strftime("%H:%M:%S") == self.card_to_delete.test_time
+                    test_time_dt.strftime("%d %B %Y") == self.card_to_delete.test_date and
+                    test_time_dt.strftime("%H:%M:%S") == self.card_to_delete.test_time
                 ):
                     delete_detection(row.id)
                     break
@@ -210,6 +241,11 @@ class HistoryView(QWidget):
             total_fragmen = row.fragment_inside + (row.fragment_outside / 2)
             status = "FAIL" if total_fragmen < 40 or total_fragmen > 400 else "PASS"
 
+            try:
+                test_time_dt = datetime.fromisoformat(row.last_edited)
+            except ValueError:
+                test_time_dt = datetime.now()
+
             card_viewmodels.append(CardViewModel(
                 id=row.id,
                 test_name=row.test_name,
@@ -217,33 +253,32 @@ class HistoryView(QWidget):
                 fragment_inside=row.fragment_inside,
                 fragment_outside=row.fragment_outside,
                 image=row.image_path,
-                date=row.test_time.strftime("%d %B %Y"),
-                time=row.test_time.strftime("%H:%M:%S"),
+                date=test_time_dt.strftime("%d %B %Y"),
+                time=test_time_dt.strftime("%H:%M:%S"),
                 status=status,
                 last_edited=row.last_edited 
             ))
 
-        # Sorting berdasarkan pilihan dropdown
         current_sort = self.sort_combo.currentText()
-        self.sort_combo.setStyleSheet(
-            "padding: 6px; font-weight: bold; border: 1px solid black;"
-        )
+        self.sort_combo.setStyleSheet("padding: 6px; font-weight: bold; border: 1px solid black;")
 
         if current_sort == "Urutkan: Tanggal Terbaru":
-            card_viewmodels.sort(key=lambda x: (x.test_date, x.test_time), reverse=True)
+            card_viewmodels.sort(key=lambda x: (x.last_edited), reverse=True)
         elif current_sort == "Urutkan: Tanggal Terlama":
-            card_viewmodels.sort(key=lambda x: (x.test_date, x.test_time))
+            card_viewmodels.sort(key=lambda x: (x.last_edited))
         elif current_sort == "Urutkan: Nama A-Z":
             card_viewmodels.sort(key=lambda x: x.tester_name.lower())
         elif current_sort == "Urutkan: Nama Z-A":
             card_viewmodels.sort(key=lambda x: x.tester_name.lower(), reverse=True)
         elif current_sort == "Urutkan: Hasil Uji - PASS":
-            card_viewmodels.sort(key=lambda x: (x.status != "PASS", x.test_date, x.test_time))
+            card_viewmodels.sort(key=lambda x: (x.status != "PASS", x.last_edited), reverse=False)
         elif current_sort == "Urutkan: Hasil Uji - FAIL":
-            card_viewmodels.sort(key=lambda x: (x.status != "FAIL", x.test_date, x.test_time))
+            card_viewmodels.sort(key=lambda x: (x.status != "FAIL", x.last_edited), reverse=False)
 
-        self.table.cards = card_viewmodels
-        self.table.populate_cards()
+        # Set hasil sortir ke filtered_cards dan reset ke halaman pertama
+        self.filtered_cards = card_viewmodels
+        self.current_page = 0
+        self.update_table_view()
 
     def delete_selected_rows(self):
         selected_cards = self.table.get_selected_cards()
@@ -263,17 +298,47 @@ class HistoryView(QWidget):
             raw_cards = get_all_detections()
             for card in selected_cards:
                 for row in raw_cards:
+                    try:
+                        test_time_dt = datetime.fromisoformat(row.last_edited)
+                    except ValueError:
+                        test_time_dt = datetime.now()
                     if (
                         row.test_name == card.test_name and
                         row.tester_name == card.tester_name and
-                        row.test_time.strftime("%d %B %Y") == card.test_date and
-                        row.test_time.strftime("%H:%M:%S") == card.test_time
+                        test_time_dt.strftime("%d %B %Y") == card.test_date and
+                        test_time_dt.strftime("%H:%M:%S") == card.test_time
                     ):
                         delete_detection(row.id)
                         break
 
             self.reload_table()
             self.apply_filters()
+
+    def update_table_view(self):
+        start_index = self.current_page * self.items_per_page
+        end_index = start_index + self.items_per_page
+        page_cards = self.filtered_cards[start_index:end_index]
+
+        self.table.cards = page_cards
+        self.table.populate_cards()
+
+        total_pages = (len(self.filtered_cards) - 1) // self.items_per_page + 1
+        self.page_info.setText(f"Halaman {self.current_page + 1} dari {total_pages}")
+
+        self.prev_btn.setEnabled(self.current_page > 0)
+        self.next_btn.setEnabled(self.current_page < total_pages - 1)
+
+    
+    def go_to_next_page(self):
+        total_pages = (len(self.filtered_cards) - 1) // self.items_per_page + 1
+        if self.current_page < total_pages - 1:
+            self.current_page += 1
+            self.update_table_view()
+
+    def go_to_prev_page(self):
+        if self.current_page > 0:
+            self.current_page -= 1
+            self.update_table_view()
 
 
     def refresh(self):

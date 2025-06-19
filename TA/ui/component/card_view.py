@@ -239,8 +239,17 @@ class CardWidget(QWidget):
         
     def update_last_edited_time(self, init=False):
         print("DEBUG - last_edited di UI:", self.vm.last_edited)
+
+        
+        if isinstance(self.vm.last_edited, str):
+            try:
+                self.vm.last_edited = datetime.datetime.fromisoformat(self.vm.last_edited)
+            except ValueError:
+                self.vm.last_edited = datetime.datetime.now()
+
         if not init:
             self.vm.last_edited = datetime.datetime.now()
+
         last_edit_str = (
             f"Terakhir diubah: {self.vm.last_edited.strftime('%d %B %Y %H:%M:%S')}"
             if self.vm.last_edited else "Terakhir diubah: -"
@@ -281,13 +290,12 @@ class ImagePopup(QDialog):
             self.image_label.setPixmap(self.pixmap)
             return
 
-        # Salin gambar dan gambar grid
         temp_pixmap = QPixmap(self.pixmap)
         painter = QPainter(temp_pixmap)
         pen = QPen(Qt.red, 1, Qt.SolidLine)
         painter.setPen(pen)
 
-        step = 37  # ubah ukuran grid sesuai kebutuhan
+        step = 128  # contoh jarak antar garis grid, sesuaikan
         width = temp_pixmap.width()
         height = temp_pixmap.height()
 

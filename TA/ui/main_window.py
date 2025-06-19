@@ -2,10 +2,14 @@ from PySide6.QtWidgets import QMainWindow, QStackedWidget
 from ui.main_view import MainView
 from ui.history_view import HistoryView
 from ui.result_view import ResultView
+from model import database
 
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
+
+        # ✅ Inisialisasi database dulu sebelum melakukan operasi lain
+        database.init_db()
 
         self.stack = QStackedWidget()
         self.setCentralWidget(self.stack)

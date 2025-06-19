@@ -2,10 +2,14 @@ from PySide6.QtWidgets import QMainWindow, QStackedWidget
 from ui.main_view import MainView
 from ui.history_view import HistoryView
 from ui.result_view import ResultView
+from model import database
 
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
+
+        # ✅ Inisialisasi database dulu sebelum melakukan operasi lain
+        database.init_db()
 
         self.stack = QStackedWidget()
         self.setCentralWidget(self.stack)
@@ -30,10 +34,21 @@ class MainWindow(QMainWindow):
         """Navigasi ke widget yang sudah ada di stack"""
         if self.stack.indexOf(widget) == -1:
             self.stack.addWidget(widget)
+
+        # Panggil refresh() jika ada
+        if hasattr(widget, "refresh") and callable(getattr(widget, "refresh")):
+            widget.refresh()
+
+        # Atur visibilitas tombol Riwayat jika widget punya HeaderView
+        if hasattr(widget, "header"):
+            if isinstance(widget, type(self.history_view)):
+                widget.header.set_history_button_visible(False)
+            else:
+                widget.header.set_history_button_visible(True)
+
         self.stack.setCurrentWidget(widget)
 
     def show_history(self):
-        self.history_view.refresh()  # reload data terbaru
         self.navigate(self.history_view)
 
     def show_result(self, image_paths, fragments_inside, fragments_outside):
@@ -43,7 +58,7 @@ class MainWindow(QMainWindow):
     def go_back(self):
         """Contoh method untuk kembali ke halaman utama"""
         self.navigate(self.main_view)
-        
+
     def go_back_from_detail(self):
-        """Navigasi kembali ke history_view khusus dari detail_view"""
+        self.history_view.refresh()  # Tambahkan ini agar data diperbarui
         self.navigate(self.history_view)

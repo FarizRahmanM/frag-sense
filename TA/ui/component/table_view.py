@@ -14,6 +14,8 @@ class TableWidget(QWidget):
         super().__init__()
         self.cards = cards or []
         self.checkbox_map = {}
+        self.card_selection_map = {}
+        self.card_data_map = {}
         self.init_ui()
 
     def init_ui(self):
@@ -21,20 +23,39 @@ class TableWidget(QWidget):
         self.setLayout(layout)
 
         title_row = QGridLayout()
-        title_row.setColumnStretch(0, 1)
-        title_row.setColumnStretch(1, 1)  
-        title_row.setColumnStretch(2, 1)  
-        title_row.setColumnStretch(3, 1)  
-        title_row.setColumnStretch(4, 1)    
-        title_row.setColumnStretch(5, 1)    
-        title_row.setColumnStretch(6, 0)  
+        title_row.setColumnStretch(0, 1)  # Checkbox
+        title_row.setColumnStretch(1, 3)  # Nama Pengujian (dengan gambar)
+        title_row.setColumnStretch(2, 2)  # Tanggal
+        title_row.setColumnStretch(3, 2)  # Waktu
+        title_row.setColumnStretch(4, 2)  # Jumlah Fragmen
+        title_row.setColumnStretch(5, 2)  # Nama Penguji
+        title_row.setColumnStretch(6, 2)  # Hasil Uji
+        title_row.setColumnStretch(7, 2)  # Aksi 
 
-        title_row.addWidget(QLabel(""), 0, 0, Qt.AlignCenter)
-        title_row.addWidget(QLabel("Pengujian"), 0, 0.5, Qt.AlignCenter)
-        title_row.addWidget(QLabel("Tanggal"), 0, 1.7, Qt.AlignCenter)
-        title_row.addWidget(QLabel("Waktu"), 0, 2.7, Qt.AlignCenter)
-        title_row.addWidget(QLabel("Jumlah Fragmen"), 0, 3.8, Qt.AlignCenter)
-        title_row.addWidget(QLabel("Aksi"), 0, 5.5, Qt.AlignCenter)
+        # Ganti label pertama dari "Nama Pengujian" menjadi Checkbox Select All
+        self.select_all_checkbox = QCheckBox()
+        self.select_all_checkbox.setStyleSheet("""
+            QCheckBox::indicator {
+                width: 18px;
+                height: 18px;
+                border: 1px solid #888;
+                background-color: white;
+            }
+            QCheckBox::indicator:checked {
+                background-color: #0078d7;
+                border: 1px solid #005999;
+            }
+        """)
+        self.select_all_checkbox.stateChanged.connect(self.toggle_select_all)
+
+        title_row.addWidget(self.select_all_checkbox, 0, 0, Qt.AlignCenter)
+        title_row.addWidget(QLabel("Nama Pengujian"), 0, 1, Qt.AlignCenter)
+        title_row.addWidget(QLabel("Tanggal"), 0, 2, Qt.AlignCenter)
+        title_row.addWidget(QLabel("Waktu"), 0, 3, Qt.AlignCenter)
+        title_row.addWidget(QLabel("Jumlah Fragmen"), 0, 4, Qt.AlignCenter)
+        title_row.addWidget(QLabel("Nama Penguji"), 0, 5, Qt.AlignCenter)
+        title_row.addWidget(QLabel("Hasil Uji"), 0, 6, Qt.AlignCenter)    
+        title_row.addWidget(QLabel("Aksi"), 0, 7, Qt.AlignCenter)
         layout.addLayout(title_row)
 
         scroll = QScrollArea()
@@ -58,26 +79,38 @@ class TableWidget(QWidget):
         self.checkbox_map = {}
 
         for card in self.cards:
-            self.add_card(card)
+            card_id = card.id  # <- pakai id unik
+            self.card_data_map[card_id] = card
 
-    def add_card(self, card):
+            if card_id not in self.card_selection_map:
+                self.card_selection_map[card_id] = False
+
+            self.add_card(card, card_id)
+
+        # Connect AFTER all checkboxes added
+        self.select_all_checkbox.stateChanged.disconnect()
+        self.select_all_checkbox.stateChanged.connect(self.toggle_select_all)
+
+    def add_card(self, card, card_id):
         container = QFrame()
         container.setFrameShape(QFrame.StyledPanel)
         container.setMinimumHeight(100)
         container.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
 
         grid = QGridLayout(container)
-        grid.setContentsMargins(10, 5, 10, 5)
-        grid.setColumnStretch(0, 0.5)  # Checkbox
-        grid.setColumnStretch(1, 2.8)  # Pengujian
-        grid.setColumnStretch(2, 2.5)    # Tanggal
-        grid.setColumnStretch(3, 3.5)    # Waktu
-        grid.setColumnStretch(4, 5.7)    # Jumlah Fragmen
-        grid.setColumnStretch(5, 1)    # Spacer
-        grid.setColumnStretch(6, 1)    # Aksi
+        grid.setColumnStretch(0, 1)  # Checkbox
+        grid.setColumnStretch(1, 3)  # Nama Pengujian
+        grid.setColumnStretch(2, 2)  # Tanggal
+        grid.setColumnStretch(3, 2)  # Waktu
+        grid.setColumnStretch(4, 2)  # Jumlah Fragmen
+        grid.setColumnStretch(5, 2)  # Nama Penguji
+        grid.setColumnStretch(6, 2)  # Status
+        grid.setColumnStretch(7, 2)  # Aksi
 
         # === Kolom 0: Checkbox ===
         checkbox = QCheckBox()
+        is_checked = self.card_selection_map.get(card_id, False)
+        checkbox.setChecked(is_checked)
         checkbox.setStyleSheet("""
             QCheckBox::indicator {
                 width: 18px;
@@ -91,7 +124,8 @@ class TableWidget(QWidget):
             }
         """)
         grid.addWidget(checkbox, 0, 0, alignment=Qt.AlignCenter)
-        self.checkbox_map[card] = checkbox
+        checkbox.stateChanged.connect(lambda state, c_id=card_id: self.checkbox_state_changed(c_id, state))
+        self.checkbox_map[card_id] = checkbox
 
         # === Kolom 1: Pengujian (Nama & Gambar) ===
         pengujian_layout = QVBoxLayout()
@@ -135,18 +169,47 @@ class TableWidget(QWidget):
         fragmen_label.setAlignment(Qt.AlignCenter)
         grid.addWidget(fragmen_label, 0, 4)
 
-        # === Kolom 5: Spacer ===
-        spacer = QSpacerItem(20, 10, QSizePolicy.Expanding, QSizePolicy.Minimum)
-        grid.addItem(spacer, 0, 5)
+        # === Kolom 5: Nama Penguji ===
+        tester_label = QLabel(card.tester_name)
+        tester_label.setAlignment(Qt.AlignCenter)
+        grid.addWidget(tester_label, 0, 5)
 
-        # === Kolom 6: Aksi ===
+
+        # === Kolom 6: Hasil (Pass/Fail) ===
+        status_label = QLabel(card.status)
+        status_label.setAlignment(Qt.AlignCenter)
+
+        # Tambahkan warna (opsional)
+        status_clean = card.status.strip().lower()
+        if status_clean == "pass":
+            status_label.setStyleSheet("color: green; font-weight: bold;")
+        elif status_clean == "fail":
+            status_label.setStyleSheet("color: red; font-weight: bold;")
+
+        grid.addWidget(status_label, 0, 6)
+
+        # === Kolom 7: Aksi ===
         button_layout = QHBoxLayout()
         delete_btn = QPushButton("Delete")
+        delete_btn.setStyleSheet("""
+            QPushButton {
+                border: 1px solid black;
+                padding: 5px 10px;
+            }
+        """)
+
         info_btn = QPushButton("Info")
+        info_btn.setStyleSheet("""
+            QPushButton {
+                border: 1px solid black;
+                padding: 5px 10px;
+            }
+        """)
+
         button_layout.addWidget(delete_btn)
         button_layout.addWidget(info_btn)
         button_layout.setAlignment(Qt.AlignCenter)
-        grid.addLayout(button_layout, 0, 6)
+        grid.addLayout(button_layout, 0, 7)
 
         # === Tombol Event ===
         delete_btn.clicked.connect(lambda _, c=card: self.delete_requested.emit(c))
@@ -155,8 +218,38 @@ class TableWidget(QWidget):
         self.cards_layout.addWidget(container)
 
     def get_selected_cards(self):
-        selected = []
-        for card, checkbox in self.checkbox_map.items():
-            if checkbox.isChecked():
-                selected.append(card)
-        return selected
+        return [self.card_data_map[cid] for cid, selected in self.card_selection_map.items() if selected]
+        
+    def toggle_select_all(self, state):
+        check = (state == Qt.Checked.value)
+        print(f"Toggle select all: {check}, checkbox map size: {len(self.checkbox_map)}")
+
+        # Update semua status di card_selection_map (semua data)
+        for card_id in self.card_selection_map:
+            self.card_selection_map[card_id] = check
+
+        # Hanya checkbox yang tampil (di halaman aktif) yang bisa diset langsung
+        for card_id, checkbox in self.checkbox_map.items():
+            checkbox.blockSignals(True)
+            checkbox.setChecked(check)
+            checkbox.blockSignals(False)
+
+        self.update_select_all_state(state)
+        
+    def update_select_all_state(self, _):
+        all_checked = all(self.card_selection_map.values())
+        any_checked = any(self.card_selection_map.values())
+        print(f"update_select_all_state called: all_checked={all_checked}, any_checked={any_checked}")
+
+        self.select_all_checkbox.blockSignals(True)
+        if all_checked:
+            self.select_all_checkbox.setCheckState(Qt.Checked)
+        elif any_checked:
+            self.select_all_checkbox.setCheckState(Qt.PartiallyChecked)
+        else:
+            self.select_all_checkbox.setCheckState(Qt.Unchecked)
+        self.select_all_checkbox.blockSignals(False)
+
+    def checkbox_state_changed(self, card_id, state):
+        self.card_selection_map[card_id] = (state == Qt.Checked)
+        self.update_select_all_state(state)

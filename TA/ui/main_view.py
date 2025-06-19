@@ -1,14 +1,15 @@
 from PySide6.QtWidgets import (
     QWidget, QLabel, QPushButton, QVBoxLayout, QHBoxLayout,
-    QScrollArea, QFrame, QFileDialog, QSizePolicy, QSpacerItem
+    QScrollArea, QFrame, QFileDialog, QSizePolicy, QSpacerItem, QGridLayout, QProgressBar, QInputDialog
 )
-from PySide6.QtGui import QPixmap, QImage, QDragEnterEvent, QDropEvent, QMouseEvent
-from PySide6.QtCore import Qt, QTimer
+from PySide6.QtGui import QPixmap, QImage, QDragEnterEvent, QDropEvent, QMouseEvent, QIcon
+from PySide6.QtCore import Qt, QTimer, QSize
 import cv2
 import os
 from detection.detector import run_detection
 from ui.component.header_view import HeaderView
 from utils import resource_path
+from worker.detection_worker import DetectionWorker
 import datetime
 
 class ImageCard(QFrame):
@@ -19,13 +20,17 @@ class ImageCard(QFrame):
         self.setFixedSize(150, 150)
         layout = QVBoxLayout()
 
-        self.image_label = QLabel()
+        self.image_label = QLabel() 
         abs_path = resource_path(image_path)  # gunakan resource_path
         pixmap = QPixmap(abs_path).scaled(150, 150, Qt.KeepAspectRatio)
         self.image_label.setPixmap(pixmap)
 
-        self.remove_btn = QPushButton("X")
-        self.remove_btn.setStyleSheet("color: red; background: transparent; border: none;")
+        icon_path = resource_path("material/delete1.png")  # resource_path agar bisa support PyInstaller
+
+        self.remove_btn = QPushButton()
+        self.remove_btn.setIcon(QIcon(icon_path))
+        self.remove_btn.setIconSize(QSize(16, 16))  # Sesuaikan ukuran ikon
+        self.remove_btn.setStyleSheet("background: transparent; border: none;")
         self.remove_btn.clicked.connect(self.remove)
 
         layout.addWidget(self.image_label)
@@ -46,6 +51,15 @@ class UploadPlaceholder(QPushButton):
         self.setFixedSize(200, 200)
         self.setAcceptDrops(True)
         self.clicked.connect(self.open_files)
+
+        self.setStyleSheet("""
+            QPushButton {
+                border: 2px solid black;
+                border-radius: 8px;
+                font-size: 14px;
+                background-color: #f0f0f0;
+            }
+        """)
 
     def dragEnterEvent(self, event: QDragEnterEvent):
         if event.mimeData().hasUrls():
@@ -70,6 +84,10 @@ class MainView(QWidget):
         self.cards = []
         self.capture = None
         self.timer = None
+        self.current_index = 0
+        self.detected_outputs = []
+        self.detected_inside = []
+        self.detected_outside = []
         self.init_ui()
         self.fragment_button.clicked.connect(self.run_detection_on_images)
         
@@ -94,9 +112,11 @@ class MainView(QWidget):
         upload_layout = QHBoxLayout()
 
         self.image_scroll = QScrollArea()
+        self.image_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self.image_scroll.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
         self.image_scroll.setWidgetResizable(True)
         self.image_container = QWidget()
-        self.image_container_layout = QHBoxLayout()
+        self.image_container_layout = QGridLayout()
         self.image_container.setLayout(self.image_container_layout)
         self.image_scroll.setWidget(self.image_container)
         self.upload_area.setStyleSheet("background-color: #F6F6F6; border: none;")
@@ -115,9 +135,17 @@ class MainView(QWidget):
         self.camera_feed.setVisible(False)
         main_layout.addWidget(self.camera_feed, alignment=Qt.AlignCenter)
 
+
+        self.progress_bar = QProgressBar()
+        self.progress_bar.setMinimum(0)
+        self.progress_bar.setMaximum(100)
+        self.progress_bar.setValue(0)
+        self.progress_bar.setVisible(False)
+        main_layout.addWidget(self.progress_bar)
+
         # Footer
         self.fragment_button = QPushButton("Hitung Fragmen")
-        self.fragment_button.setStyleSheet("padding: 10px; background-color: #CCCCCC; color: white;")
+        self.fragment_button.setStyleSheet("padding: 10px; background-color: #CCCCCC; color: #000000 ;")
         main_layout.addWidget(self.fragment_button, alignment=Qt.AlignCenter)
 
         self.take_photo_label = QLabel("Ambil Foto Langsung")
@@ -154,11 +182,20 @@ class MainView(QWidget):
     def add_card(self, image_path):
         card = ImageCard(image_path, self.remove_card)
         self.cards.append(image_path)
-        self.image_container_layout.addWidget(card)
+
+        # Tentukan posisi grid
+        index = len(self.cards) - 1
+        col = index % 4   # 4 kolom per baris
+        row = index // 4
+
+        self.image_container_layout.addWidget(card, row, col)
+
         self.fragment_button.setStyleSheet("background-color: #3B89FF; color: white;")
 
     def remove_card(self, image_path):
         self.cards = [c for c in self.cards if c != image_path]
+        self.refresh_grid_layout()
+
         if not self.cards:
             self.fragment_button.setStyleSheet("background-color: #CCCCCC; color: white;")
 
@@ -169,9 +206,14 @@ class MainView(QWidget):
             self.capture_image()
 
     def start_camera(self):
-        self.capture = cv2.VideoCapture(0)
+        selected_index = self.select_camera_index()
+        if selected_index is None:
+            print("Tidak ada kamera yang dipilih.")
+            return
+
+        self.capture = cv2.VideoCapture(selected_index)
         if not self.capture.isOpened():
-            print("Kamera tidak tersedia.")
+            print("Kamera tidak bisa dibuka.")
             return
 
         self.camera_feed.setVisible(True)
@@ -235,20 +277,89 @@ class MainView(QWidget):
         if not self.cards:
             return
 
-        image_paths = []
-        fragments_inside = []
-        fragments_outside = []
+        self.current_index = 0
+        self.detected_outputs = []
+        self.detected_inside = []
+        self.detected_outside = []
 
-        for image_path in self.cards:
-            abs_path = resource_path(image_path)
-            output_path, fragment_inside, fragment_outside = run_detection(abs_path)
-            image_paths.append(output_path)
-            fragments_inside.append(fragment_inside)
-            fragments_outside.append(fragment_outside)
+        self.progress_bar.setMaximum(len(self.cards))
+        self.progress_bar.setValue(0)
+        self.progress_bar.setVisible(True)
+        self.fragment_button.setEnabled(False)
 
-        self.show_result_callback(image_paths, fragments_inside, fragments_outside)
-            
-        
+        self.process_next_image()
+
+    def process_next_image(self):
+        if self.current_index >= len(self.cards):
+            # Semua selesai
+            self.progress_bar.setVisible(False)
+            self.fragment_button.setEnabled(True)
+
+            self.show_result_callback(
+                self.detected_outputs, self.detected_inside, self.detected_outside
+            )
+            return
+
+        image_path = self.cards[self.current_index]
+        abs_path = resource_path(image_path)
+        self.worker = DetectionWorker(abs_path)
+        self.worker.finished.connect(self.on_detection_finished)
+        self.worker.error_occurred.connect(self.on_detection_error)
+        self.worker.start()
+
+
+    def on_detection_finished(self, output_path, inside, outside):
+        self.detected_outputs.append(output_path)
+        self.detected_inside.append(inside)
+        self.detected_outside.append(outside)
+
+        self.current_index += 1
+        self.progress_bar.setValue(self.current_index)
+
+        self.process_next_image()
+
+    def on_detection_error(self, error_message):
+        print("Deteksi gagal:", error_message)
+        self.current_index += 1
+        self.progress_bar.setValue(self.current_index)
+        self.process_next_image()
 
     def on_back_clicked(self, event: QMouseEvent):
         self.stop_camera()
+
+
+    def get_available_cameras(self, max_cameras=10):
+        available = []
+        for i in range(max_cameras):
+            cap = cv2.VideoCapture(i)
+            if cap.isOpened():
+                available.append(i)
+                cap.release()
+        return available
+
+    def select_camera_index(self):
+        cameras = self.get_available_cameras()
+        if not cameras:
+            return None
+
+        items = [f"Kamera {i}" for i in cameras]
+        index, ok = QInputDialog.getItem(self, "Pilih Kamera", "Kamera Tersedia:", items, 0, False)
+        if ok:
+            selected_index = int(index.split()[-1])
+            return selected_index
+        return None
+
+    def refresh_grid_layout(self):
+        # Bersihkan semua item di layout
+        while self.image_container_layout.count():
+            item = self.image_container_layout.takeAt(0)
+            widget = item.widget()
+            if widget is not None:
+                widget.setParent(None)
+
+        # Tambahkan ulang semua kartu yang tersisa
+        for index, image_path in enumerate(self.cards):
+            card = ImageCard(image_path, self.remove_card)
+            row = index // 4
+            col = index % 4
+            self.image_container_layout.addWidget(card, row, col)

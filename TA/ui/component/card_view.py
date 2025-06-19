@@ -1,9 +1,9 @@
 import datetime
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QGridLayout, QLabel, QPushButton, QLineEdit,
-    QHBoxLayout, QDialog
+    QHBoxLayout, QDialog, QComboBox, QSizePolicy
 )
-from PySide6.QtGui import QPixmap
+from PySide6.QtGui import QPixmap, QPainter, QPen
 from PySide6.QtCore import Qt, Signal
 from utils import resource_path
 
@@ -18,7 +18,7 @@ class ClickableLabel(QLabel):
 
 class CardViewModel:
     def __init__(self, id=None, test_name=None, date=None, time=None, total_fragments=0, image=None,
-                 tester_name=None, fragment_inside=0, fragment_outside=0, status=""):
+                 tester_name=None, fragment_inside=0, fragment_outside=0, status="", last_edited=None):
         self.id = id
         self.test_name = test_name
         self.test_date = date or datetime.date.today().strftime("%d %B %Y")
@@ -29,7 +29,8 @@ class CardViewModel:
         self.fragment_inside = fragment_inside
         self.fragment_outside = fragment_outside
         self.status = status
-
+        self.last_edited = last_edited or datetime.datetime.now()
+        
     @property
     def total_fragments(self):
         return self.fragment_inside + self.fragment_outside * 0.5
@@ -40,7 +41,6 @@ class CardWidget(QWidget):
         super().__init__()
         self.vm = vm
 
-        self.setFixedHeight(500)
         self.layout = QVBoxLayout(self)
         self.setLayout(self.layout)
 
@@ -48,12 +48,12 @@ class CardWidget(QWidget):
         outer_layout = QGridLayout()
         outer.setLayout(outer_layout)
         outer.setStyleSheet("background-color: #F0F0F0; border-radius: 15px;")
-        outer.setFixedSize(800, 400)
+        outer.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
 
         # Kiri: Gambar
         self.image_label = ClickableLabel()
         pixmap = QPixmap(resource_path(self.vm.image_path)) if self.vm.image_path else QPixmap()
-        self.image_label.setPixmap(pixmap.scaledToHeight(220))
+        self.image_label.setPixmap(pixmap.scaled(400, 220, Qt.KeepAspectRatio))
         self.image_label.setFixedWidth(445)
         self.image_label.setAlignment(Qt.AlignLeft | Qt.AlignTop)
 
@@ -68,14 +68,42 @@ class CardWidget(QWidget):
 
         # Kanan: Form
         form_layout = QVBoxLayout()
+        
 
         # Nama Hasil Uji
         label_uji = QLabel("Nama Hasil Uji")
         self.input_uji = QLineEdit(self.vm.test_name or "")
+        self.input_uji.setStyleSheet("""
+            QLineEdit {
+                border: 2px solid black;
+                border-radius: 4px;
+                padding: 4px;
+            }
+        """)
 
         # Nama Penguji
         label_penguji = QLabel("Nama Penguji")
-        self.input_penguji = QLineEdit(self.vm.tester_name or "")
+        self.input_penguji = QComboBox()
+        self.input_penguji.addItems([
+            "G. Agus Permana Putra Sujana",
+            "Sumarlin Manalu",
+            "Adi Irawan",
+            "Rivaldi Pamungkas",
+            "Chandra Taufik Rahman"
+        ])
+        self.input_penguji.setStyleSheet("""
+            QComboBox {
+                border: 2px solid black;
+                border-radius: 4px;
+                padding: 4px;
+            }
+        """)
+
+        # Set nilai awal jika ada data sebelumnya
+        if self.vm.tester_name:
+            index = self.input_penguji.findText(self.vm.tester_name)
+            if index != -1:
+                self.input_penguji.setCurrentIndex(index)
 
         # Fragmen Dalam
         fragmen_inside_label = QLabel("Fragmen Dalam")
@@ -124,6 +152,14 @@ class CardWidget(QWidget):
         waktu_layout.addWidget(QLabel(self.vm.test_date))
         waktu_layout.addWidget(QLabel(self.vm.test_time))
 
+        
+        # Tambahkan label waktu update
+        self.last_edited_label = QLabel()
+        self.last_edited_label.setStyleSheet("font-size: 12px; color: black; font-weight: bold;")
+        self.update_last_edited_time(init=True) 
+        waktu_layout.addWidget(self.last_edited_label)
+        
+
         # Tambahkan ke form layout
         form_layout.addWidget(label_uji)
         form_layout.addWidget(self.input_uji)
@@ -148,6 +184,8 @@ class CardWidget(QWidget):
         outer_layout.addLayout(form_layout, 0, 1)
         self.update_counts()
         self.layout.addWidget(outer)
+        self.input_uji.textChanged.connect(self.update_last_edited_time)
+        self.input_penguji.currentIndexChanged.connect(self.update_last_edited_time)
 
     def update_counts(self):
         total = self.vm.fragment_inside + 0.5 * self.vm.fragment_outside
@@ -167,42 +205,104 @@ class CardWidget(QWidget):
     def increment_fragmen_inside(self):
         self.vm.fragment_inside += 1
         self.update_counts()
+        self.update_last_edited_time()
 
     def decrement_fragmen_inside(self):
         if self.vm.fragment_inside > 0:
             self.vm.fragment_inside -= 1
         self.update_counts()
+        self.update_last_edited_time()
 
     def increment_fragmen_outside(self):
         self.vm.fragment_outside += 1
         self.update_counts()
+        self.update_last_edited_time()
 
     def decrement_fragmen_outside(self):
         if self.vm.fragment_outside > 0:
             self.vm.fragment_outside -= 1
         self.update_counts()
+        self.update_last_edited_time()
 
     def show_image_popup(self, event):
         if not self.vm.image_path:
             return
 
-        dialog = QDialog(self)
-        dialog.setWindowTitle("Perbesar Gambar")
-        dialog_layout = QVBoxLayout(dialog)
-
-        pixmap = QPixmap(resource_path(self.vm.image_path))
-        enlarged_pixmap = pixmap.scaled(pixmap.width(), pixmap.height(), Qt.KeepAspectRatio)
-
-        image_label = QLabel()
-        image_label.setPixmap(enlarged_pixmap)
-        image_label.setAlignment(Qt.AlignCenter)
-
-        dialog_layout.addWidget(image_label)
-        dialog.setStyleSheet("background-color: white;")
-        dialog.exec()
+        popup = ImagePopup(self.vm.image_path)
+        popup.exec()
 
     def card_data(self):
         self.vm.test_name = self.input_uji.text()
-        self.vm.tester_name = self.input_penguji.text()
+        self.vm.tester_name = self.input_penguji.currentText()
         print(f"DEBUG: Saving Card: test_name={self.vm.test_name}, tester_name={self.vm.tester_name}, inside={self.vm.fragment_inside}, outside={self.vm.fragment_outside}")
         return self.vm
+        
+    def update_last_edited_time(self, init=False):
+        print("DEBUG - last_edited di UI:", self.vm.last_edited)
+
+        
+        if isinstance(self.vm.last_edited, str):
+            try:
+                self.vm.last_edited = datetime.datetime.fromisoformat(self.vm.last_edited)
+            except ValueError:
+                self.vm.last_edited = datetime.datetime.now()
+
+        if not init:
+            self.vm.last_edited = datetime.datetime.now()
+
+        last_edit_str = (
+            f"Terakhir diubah: {self.vm.last_edited.strftime('%d %B %Y %H:%M:%S')}"
+            if self.vm.last_edited else "Terakhir diubah: -"
+        )
+        self.last_edited_label.setText(last_edit_str)
+
+class ImagePopup(QDialog):
+    def __init__(self, image_path):
+        super().__init__()
+        self.setWindowTitle("Perbesar Gambar")
+        self.setStyleSheet("background-color: white;")
+
+        self.pixmap = QPixmap(resource_path(image_path))
+        self.grid_enabled = False
+
+        self.image_label = QLabel()
+        self.image_label.setPixmap(self.pixmap)
+        self.image_label.setAlignment(Qt.AlignCenter)
+
+        self.grid_checkbox = QPushButton("Tampilkan Grid")
+        self.grid_checkbox.setCheckable(True)
+        self.grid_checkbox.clicked.connect(self.toggle_grid)
+
+        layout = QVBoxLayout()
+        layout.addWidget(self.image_label)
+        layout.addWidget(self.grid_checkbox)
+        self.setLayout(layout)
+
+        self.update_image()
+
+    def toggle_grid(self):
+        self.grid_enabled = not self.grid_enabled
+        self.grid_checkbox.setText("Sembunyikan Grid" if self.grid_enabled else "Tampilkan Grid")
+        self.update_image()
+
+    def update_image(self):
+        if not self.grid_enabled:
+            self.image_label.setPixmap(self.pixmap)
+            return
+
+        temp_pixmap = QPixmap(self.pixmap)
+        painter = QPainter(temp_pixmap)
+        pen = QPen(Qt.red, 1, Qt.SolidLine)
+        painter.setPen(pen)
+
+        step = 128  # contoh jarak antar garis grid, sesuaikan
+        width = temp_pixmap.width()
+        height = temp_pixmap.height()
+
+        for x in range(0, width, step):
+            painter.drawLine(x, 0, x, height)
+        for y in range(0, height, step):
+            painter.drawLine(0, y, width, y)
+
+        painter.end()
+        self.image_label.setPixmap(temp_pixmap)

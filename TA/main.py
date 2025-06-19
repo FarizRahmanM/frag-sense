@@ -20,7 +20,22 @@ if __name__ == "__main__":
 
     window = MainWindow()
     window.setWindowTitle("FragSense")
-    window.resize(1024, 768)
+    # Ambil ukuran layar
+    screen = app.primaryScreen()
+    screen_size = screen.availableGeometry()  # Menghindari area yang tertutup taskbar
+
+    # Kurangi sedikit biar tidak menutupi tombol window (X, minimize, dll.)
+    margin = 50
+    width = screen_size.width() - margin
+    height = screen_size.height() - margin
+
+    # Atur ukuran jendela
+    window.resize(width, height)
+    window.move(
+        (screen_size.width() - width) // 2,
+        (screen_size.height() - height) // 2
+    )
+
     window.show()
 
     sys.exit(app.exec())

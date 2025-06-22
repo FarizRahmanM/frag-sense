@@ -1,6 +1,6 @@
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QLabel, QScrollArea, QPushButton,
-    QFileDialog, QMessageBox, QHBoxLayout, QSizePolicy, QComboBox, QLineEdit
+    QFileDialog, QMessageBox, QHBoxLayout, QSizePolicy, QComboBox, QLineEdit, QCheckBox
 )
 from PySide6.QtCore import Qt, Slot
 import pandas as pd
@@ -55,12 +55,12 @@ class HistoryView(QWidget):
         title.setStyleSheet("font-size: 24px; font-weight: bold;")
         title.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
 
-        export_btn = QPushButton("Unduh Data")
-        export_btn.setFixedWidth(150)
-        export_btn.setStyleSheet(
+        self.export_btn = QPushButton("Unduh Data")
+        self.export_btn.setFixedWidth(150)
+        self.export_btn.setStyleSheet(
             "color: black; background: #C2E7FF; padding: 8px; font-weight: bold;"
         )
-        export_btn.clicked.connect(self.export_selected_to_excel)
+        self.export_btn.clicked.connect(self.export_selected_to_excel)
 
         header_layout.addWidget(title)
 
@@ -76,23 +76,50 @@ class HistoryView(QWidget):
         self.sort_combo.setFixedWidth(200)
         self.sort_combo.currentIndexChanged.connect(self.apply_filters)
 
+        manage_testers_btn = QPushButton("Kelola Penguji")
+        manage_testers_btn.setStyleSheet(
+            "color: black; background: #FCE38A; padding: 8px; font-weight: bold;"
+        )
+        manage_testers_btn.setFixedWidth(150)
+        manage_testers_btn.clicked.connect(self.show_manage_testers_dialog)
+
+
         # Tombol Hapus
-        delete_btn = QPushButton("Hapus Data")
-        delete_btn.setFixedWidth(120)
-        delete_btn.setStyleSheet(
+        self.delete_btn = QPushButton("Hapus Data")
+        self.delete_btn.setFixedWidth(120)
+        self.delete_btn.setStyleSheet(
             "color: black; background: #FFBABA; padding: 8px; font-weight: bold;"
         )
-        delete_btn.clicked.connect(self.delete_selected_rows)
+        self.delete_btn.clicked.connect(self.delete_selected_rows)
         
 
 
         header_layout.addWidget(self.sort_combo)
-        header_layout.addWidget(export_btn)
-        header_layout.addWidget(delete_btn)
+        # Checkbox indikator status (tidak bisa diklik)
+        self.select_all_checkbox = QCheckBox("Status Centang")
+        self.select_all_checkbox.setEnabled(False)
+        self.select_all_checkbox.setStyleSheet("font-weight: bold;")
+        header_layout.addWidget(self.select_all_checkbox)
+        header_layout.addWidget(manage_testers_btn)
+        header_layout.addWidget(self.export_btn)
+        header_layout.addWidget(self.delete_btn)
         content_layout.addLayout(header_layout)
+
+        # Select All - Halaman Saat Ini
+        select_page_btn = QPushButton("Pilih Semua (Halaman Ini)")
+        select_page_btn.setStyleSheet("color: black; background: #D2F8D2; padding: 6px; font-weight: bold;")
+        select_page_btn.clicked.connect(self.toggle_select_all_on_current_page)
+        header_layout.addWidget(select_page_btn)
+
+        # Select All - Semua Halaman
+        select_all_btn = QPushButton("Pilih Semua (Semua Data)")
+        select_all_btn.setStyleSheet("color: black; background: #FFD2D2; padding: 6px; font-weight: bold;")
+        select_all_btn.clicked.connect(self.toggle_select_all_across_all_pages)
+        header_layout.addWidget(select_all_btn)
 
         # Table widget dengan data awal
         self.table = TableWidget([])
+        self.table.checkbox_changed.connect(self.update_action_buttons_state)
         self.table.delete_requested.connect(self.on_table_delete_requested)
         self.table.info_requested.connect(self.on_table_info_requested)
         content_layout.addWidget(self.table)
@@ -145,7 +172,8 @@ class HistoryView(QWidget):
                     date = test_time_dt.strftime("%d %B %Y"),
                     time = test_time_dt.strftime("%H:%M:%S"),
                     status=status,
-                    last_edited=row.last_edited   # ← Dikirim ke ViewModel
+                    last_edited=row.last_edited,
+                    inference_time=row.inference_time
                 )
             )
 
@@ -252,7 +280,8 @@ class HistoryView(QWidget):
                 date=test_time_dt.strftime("%d %B %Y"),
                 time=test_time_dt.strftime("%H:%M:%S"),
                 status=status,
-                last_edited=row.last_edited 
+                last_edited=row.last_edited,
+                inference_time=row.inference_time
             ))
 
         current_sort = self.sort_combo.currentText()
@@ -318,9 +347,29 @@ class HistoryView(QWidget):
         self.table.cards = page_cards
         self.table.populate_cards()
 
+        self.table.checkbox_map.clear()  # Bersihkan dulu sebelum membuat checkbox baru
+        self.table.cards = page_cards
+        self.table.populate_cards()
+
+        # Sinkronisasi checkbox setelah populate
+        for card in page_cards:
+            card_id = str(card.id)
+
+            if card_id not in self.table.card_selection_map:
+                self.table.card_selection_map[card_id] = False
+
+            if card_id in self.table.checkbox_map:
+                checkbox = self.table.checkbox_map[card_id]
+                selected = self.table.card_selection_map.get(card_id, False)
+                checkbox.blockSignals(True)
+                checkbox.setChecked(selected)
+                checkbox.blockSignals(False)
+
+        self.update_select_all_status()
+
         total_items = len(self.filtered_cards)
         total_pages = (total_items - 1) // self.items_per_page + 1
-
+ 
         # Hitung indeks tampilan
         display_start = start_index + 1
         display_end = min(end_index, total_items)
@@ -383,6 +432,7 @@ class HistoryView(QWidget):
         page_input.setStyleSheet("border: 1px solid gray; padding: 2px;")
         page_input.returnPressed.connect(lambda: self.go_to_input_page(page_input.text(), total_pages))
         self.pagination_layout.addWidget(page_input)
+        self.update_action_buttons_state()
 
     
     def go_to_prev_page(self):
@@ -412,6 +462,86 @@ class HistoryView(QWidget):
         except ValueError:
             pass
 
+
+    def show_manage_testers_dialog(self):
+        from services.testers_service import TesterCRUDDialog
+        dialog = TesterCRUDDialog(self)
+        dialog.exec()
+        # Setelah dialog ditutup, bisa reload data jika perlu:
+        self.reload_table()
+        self.apply_filters()
+
+    def select_all_on_current_page(self):
+        for card in self.table.cards:
+            card_id = str(card.id)
+            self.table.card_selection_map[card_id] = True
+            if card_id in self.table.checkbox_map:
+                checkbox = self.table.checkbox_map[card_id]
+                checkbox.blockSignals(True)
+                checkbox.setChecked(True)
+                checkbox.blockSignals(False)
+        self.update_select_all_status()
+
+    def toggle_select_all_across_all_pages(self):
+        all_selected = all(bool(v) for v in self.table.card_selection_map.values())
+        new_state = not all_selected  # Toggle state
+
+        # Update semua state map (semua data)
+        for card in self.filtered_cards:
+            card_id = str(card.id)
+            self.table.card_selection_map[card_id] = new_state
+
+        # ✅ Update checkbox yang terlihat (halaman ini saja)
+        for card_id, checkbox in self.table.checkbox_map.items():
+            checkbox.blockSignals(True)
+            checkbox.setChecked(new_state)
+            checkbox.blockSignals(False)
+
+        self.update_select_all_status()
+        self.table.checkbox_changed.emit()
+        self.update_table_view()
+
+    def toggle_select_all_on_current_page(self):
+        # Pastikan map untuk halaman ini sudah siap
+        for card in self.table.cards:
+            card_id = str(card.id)
+            if card_id not in self.table.card_selection_map:
+                self.table.card_selection_map[card_id] = False
+
+        visible_ids = [str(cid) for cid in self.table.checkbox_map.keys()]
+        all_visible_selected = all(self.table.card_selection_map.get(cid, False) for cid in visible_ids)
+        new_state = not all_visible_selected
+
+        for cid in visible_ids:
+            self.table.card_selection_map[cid] = new_state
+            checkbox = self.table.checkbox_map[cid]
+            checkbox.blockSignals(True)
+            checkbox.setChecked(new_state)
+            checkbox.blockSignals(False)
+
+        self.update_select_all_status()
+        self.table.checkbox_changed.emit()
+        
+
+    def update_select_all_status(self):
+        total_checkboxes = len(self.table.card_selection_map)
+        total_selected = sum(1 for selected in self.table.card_selection_map.values() if selected)
+
+        if total_checkboxes == 0:
+            self.select_all_checkbox.setText("Status Centang: Kosong")
+        elif total_selected == total_checkboxes:
+            self.select_all_checkbox.setText("Status Centang: Semua Terpilih")
+        elif total_selected == 0:
+            self.select_all_checkbox.setText("Status Centang: Tidak Ada Terpilih")
+        else:
+            self.select_all_checkbox.setText(f"Status Centang: {total_selected}/{total_checkboxes}")
+
+    def update_action_buttons_state(self):
+        selected = self.table.get_selected_cards()
+        print("Selected cards count:", len(selected))  # Debug
+        enable = len(selected) > 0
+        self.export_btn.setEnabled(enable)
+        self.delete_btn.setEnabled(enable)
 
     def refresh(self):
         """Metode ini dipanggil agar tabel terupdate saat kembali dari DetailView"""

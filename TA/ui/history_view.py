@@ -1,9 +1,10 @@
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QLabel, QScrollArea, QPushButton,
-    QFileDialog, QMessageBox, QHBoxLayout, QSizePolicy, QComboBox
+    QFileDialog, QMessageBox, QHBoxLayout, QSizePolicy, QComboBox, QLineEdit
 )
 from PySide6.QtCore import Qt, Slot
 import pandas as pd
+from functools import partial
 from datetime import datetime
 from ui.component.header_view import HeaderView
 from ui.component.table_view import TableWidget
@@ -18,6 +19,7 @@ class HistoryView(QWidget):
         self.main_window = main_window
         self.items_per_page = 20
         self.current_page = 0
+        self.max_page_buttons = 5
         self.filtered_cards = []
 
         main_layout = QVBoxLayout(self)
@@ -95,23 +97,17 @@ class HistoryView(QWidget):
         self.table.info_requested.connect(self.on_table_info_requested)
         content_layout.addWidget(self.table)
 
-
         # Navigasi halaman
+        pagination_container = QHBoxLayout()
+        pagination_container.setAlignment(Qt.AlignCenter)
+
         self.pagination_layout = QHBoxLayout()
-        self.prev_btn = QPushButton("← Sebelumnya")
-        self.prev_btn.clicked.connect(self.go_to_prev_page)
+        self.pagination_layout.setSpacing(4)  # spacing antar tombol
+        pagination_container.addStretch()
+        pagination_container.addLayout(self.pagination_layout)
+        pagination_container.addStretch()
 
-        self.next_btn = QPushButton("Selanjutnya →")
-        self.next_btn.clicked.connect(self.go_to_next_page)
-
-        self.page_info = QLabel("")
-        self.page_info.setAlignment(Qt.AlignCenter)
-
-        self.pagination_layout.addWidget(self.prev_btn)
-        self.pagination_layout.addWidget(self.page_info)
-        self.pagination_layout.addWidget(self.next_btn)
-
-        content_layout.addLayout(self.pagination_layout)
+        content_layout.addLayout(pagination_container)
 
         # Tambahkan konten ke scroll area
         scroll.setWidget(content)
@@ -322,23 +318,99 @@ class HistoryView(QWidget):
         self.table.cards = page_cards
         self.table.populate_cards()
 
-        total_pages = (len(self.filtered_cards) - 1) // self.items_per_page + 1
-        self.page_info.setText(f"Halaman {self.current_page + 1} dari {total_pages}")
+        total_items = len(self.filtered_cards)
+        total_pages = (total_items - 1) // self.items_per_page + 1
 
-        self.prev_btn.setEnabled(self.current_page > 0)
-        self.next_btn.setEnabled(self.current_page < total_pages - 1)
+        # Hitung indeks tampilan
+        display_start = start_index + 1
+        display_end = min(end_index, total_items)
+
+        # Hapus layout lama
+        while self.pagination_layout.count():
+            child = self.pagination_layout.takeAt(0)
+            if child.widget():
+                child.widget().deleteLater()
+
+        # Tombol ke halaman pertama
+        first_btn = QPushButton("«")
+        first_btn.clicked.connect(lambda: self.go_to_page(0))
+        first_btn.setFixedSize(32, 32)  # ← Tambah ukuran kecil
+        self.pagination_layout.addWidget(first_btn)
+
+        # Tombol ke halaman sebelumnya
+        prev_btn = QPushButton("‹")
+        prev_btn.clicked.connect(self.go_to_prev_page)
+        prev_btn.setFixedSize(32, 32)  # ← Tambah ukuran kecil
+        self.pagination_layout.addWidget(prev_btn)
+
+        # Tampilkan 5 halaman di sekitar halaman aktif
+        half_range = self.max_page_buttons // 2
+        start_page = max(0, self.current_page - half_range)
+        end_page = min(total_pages, start_page + self.max_page_buttons)
+
+        # Pastikan tidak keluar dari batas awal
+        if end_page - start_page < self.max_page_buttons:
+            start_page = max(0, end_page - self.max_page_buttons)
+
+        for i in range(start_page, end_page):
+            btn = QPushButton(str(i + 1))
+            btn.setFixedSize(32, 32)
+            if i == self.current_page:
+                btn.setStyleSheet("background-color: #007bff; color: white; border-radius: 15px; font-weight: bold;")
+            btn.clicked.connect(partial(self.go_to_page, i))  # ✅ binding i dengan benar
+            self.pagination_layout.addWidget(btn)
+
+        # Tombol ke halaman selanjutnya
+        next_btn = QPushButton("›")
+        next_btn.clicked.connect(self.go_to_next_page)
+        next_btn.setFixedSize(32, 32)
+        self.pagination_layout.addWidget(next_btn)
+
+        last_btn = QPushButton("»")
+        last_btn.clicked.connect(lambda: self.go_to_page(total_pages - 1))
+        last_btn.setFixedSize(32, 32)
+        self.pagination_layout.addWidget(last_btn)
+
+        total_label = QLabel(f"Total: {total_items} data")
+        total_label.setAlignment(Qt.AlignCenter)
+        total_label.setStyleSheet("font-weight: bold;")
+        self.pagination_layout.addWidget(total_label)
+
+        # Input langsung ke halaman
+        page_input = QLineEdit()
+        page_input.setFixedWidth(40)
+        page_input.setPlaceholderText("...")
+        page_input.setStyleSheet("border: 1px solid gray; padding: 2px;")
+        page_input.returnPressed.connect(lambda: self.go_to_input_page(page_input.text(), total_pages))
+        self.pagination_layout.addWidget(page_input)
 
     
+    def go_to_prev_page(self):
+        if self.current_page > 0:
+            self.current_page -= 1
+            self.update_table_view()
+
     def go_to_next_page(self):
         total_pages = (len(self.filtered_cards) - 1) // self.items_per_page + 1
         if self.current_page < total_pages - 1:
             self.current_page += 1
             self.update_table_view()
-
-    def go_to_prev_page(self):
-        if self.current_page > 0:
-            self.current_page -= 1
+            
+    def go_to_page(self, page_number):
+        """Pindah ke halaman tertentu dan update tampilan tabel."""
+        total_pages = (len(self.filtered_cards) - 1) // self.items_per_page + 1
+        if 0 <= page_number < total_pages:
+            self.current_page = page_number
             self.update_table_view()
+    
+    def go_to_input_page(self, text, total_pages):
+        try:
+            page = int(text) - 1
+            if 0 <= page < total_pages:
+                self.current_page = page
+                self.update_table_view()
+        except ValueError:
+            pass
 
 
     def refresh(self):

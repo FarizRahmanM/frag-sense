@@ -157,7 +157,7 @@ class HistoryView(QWidget):
                 status = "PASS"
             
             try:
-                test_time_dt = datetime.fromisoformat(row.last_edited)
+                test_time_dt = row.last_edited
             except ValueError:
                 test_time_dt = datetime.now()
 
@@ -178,6 +178,7 @@ class HistoryView(QWidget):
             )
 
         self.filtered_cards = card_viewmodels
+        self.table.all_cards = self.filtered_cards
         self.current_page = 0
         self.update_table_view()
 
@@ -192,7 +193,7 @@ class HistoryView(QWidget):
             raw_cards = get_all_detections()
             for row in raw_cards:
                 try:
-                    test_time_dt = datetime.fromisoformat(row.last_edited)
+                    test_time_dt = row.last_edited
                 except ValueError:
                     test_time_dt = datetime.now()
                 if (
@@ -266,7 +267,7 @@ class HistoryView(QWidget):
             status = "FAIL" if total_fragmen < 40 or total_fragmen > 400 else "PASS"
 
             try:
-                test_time_dt = datetime.fromisoformat(row.last_edited)
+                test_time_dt = row.last_edited
             except ValueError:
                 test_time_dt = datetime.now()
 
@@ -302,6 +303,7 @@ class HistoryView(QWidget):
 
         # Set hasil sortir ke filtered_cards dan reset ke halaman pertama
         self.filtered_cards = card_viewmodels
+        self.table.all_cards = self.filtered_cards
         self.current_page = 0
         self.update_table_view()
 
@@ -320,21 +322,9 @@ class HistoryView(QWidget):
         )
 
         if confirm == QMessageBox.Yes:
-            raw_cards = get_all_detections()
             for card in selected_cards:
-                for row in raw_cards:
-                    try:
-                        test_time_dt = datetime.fromisoformat(row.last_edited)
-                    except ValueError:
-                        test_time_dt = datetime.now()
-                    if (
-                        row.test_name == card.test_name and
-                        row.tester_name == card.tester_name and
-                        test_time_dt.strftime("%d %B %Y") == card.test_date and
-                        test_time_dt.strftime("%H:%M:%S") == card.test_time
-                    ):
-                        delete_detection(row.id)
-                        break
+                if card.id:
+                    delete_detection(card.id)
 
             self.reload_table()
             self.apply_filters()
@@ -344,9 +334,8 @@ class HistoryView(QWidget):
         end_index = start_index + self.items_per_page
         page_cards = self.filtered_cards[start_index:end_index]
 
-        self.table.cards = page_cards
-        self.table.populate_cards()
-
+        
+        self.table.all_cards = self.filtered_cards
         self.table.checkbox_map.clear()  # Bersihkan dulu sebelum membuat checkbox baru
         self.table.cards = page_cards
         self.table.populate_cards()
@@ -547,3 +536,4 @@ class HistoryView(QWidget):
         """Metode ini dipanggil agar tabel terupdate saat kembali dari DetailView"""
         self.reload_table()
         self.apply_filters()
+        self.table.all_cards = self.filtered_cards

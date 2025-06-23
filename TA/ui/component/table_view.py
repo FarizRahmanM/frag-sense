@@ -15,6 +15,7 @@ class TableWidget(QWidget):
     def __init__(self, cards=None):
         super().__init__()
         self.cards = cards or []
+        self.all_cards = cards
         self.checkbox_map = {}
         self.card_selection_map = {}
         self.card_data_map = {}
@@ -175,11 +176,12 @@ class TableWidget(QWidget):
         self.cards_layout.addWidget(container)
 
     def get_selected_cards(self):
-        return [
-            self.card_data_map[cid] 
-            for cid, selected in self.card_selection_map.items() 
-            if bool(selected)
-        ]
+        selected_cards = []
+        for card in self.all_cards:  # gunakan seluruh data, bukan hanya self.cards
+            card_id = str(card.id)
+            if self.card_selection_map.get(card_id, False):
+                selected_cards.append(card)
+        return selected_cards
 
     def checkbox_state_changed(self, card_id, checked):
         self.card_selection_map[str(card_id)] = checked

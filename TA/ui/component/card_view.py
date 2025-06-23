@@ -21,8 +21,8 @@ class CardViewModel:
                  tester_name=None, fragment_inside=0, fragment_outside=0, status="", last_edited=None, tester_id=None, inference_time=None):
         self.id = id
         self.test_name = test_name
-        self.test_date = date or datetime.date.today().strftime("%d %B %Y")
-        self.test_time = time or datetime.datetime.now().strftime("%H:%M:%S")
+        self.test_date = date  # ❌ Hapus fallback waktu sekarang
+        self.test_time = time  # ❌ Jangan isi otomatis
         self.jumlah_fragmen = total_fragments
         self.image_path = image
         self.tester_id = tester_id
@@ -251,26 +251,31 @@ class CardWidget(QWidget):
     def card_data(self):
         self.vm.test_name = self.input_uji.text()
         self.vm.tester_name = self.input_penguji.currentText()
-        self.vm.tester_id = self.input_penguji.currentData()  # ambil tester_id dari userData
-        print(f"DEBUG: Saving Card: test_name={self.vm.test_name}, tester_id={self.vm.tester_id}, inside={self.vm.fragment_inside}, outside={self.vm.fragment_outside}")
+        self.vm.tester_id = self.input_penguji.currentData()
+        
+        if not self.vm.test_time:
+            self.vm.test_time = datetime.datetime.now().strftime("%H:%M:%S")
+        
+        print(f"DEBUG: Saving Card: test_name={self.vm.test_name}, tester_id={self.vm.tester_id}, inside={self.vm.fragment_inside}, outside={self.vm.fragment_outside}, test_time={self.vm.test_time}")
+        
+        self.vm.last_edited = datetime.datetime.now()
         return self.vm
         
     def update_last_edited_time(self, init=False):
-        print("DEBUG - last_edited di UI:", self.vm.last_edited)
-
-        
-        if isinstance(self.vm.last_edited, str):
-            try:
-                self.vm.last_edited = datetime.datetime.fromisoformat(self.vm.last_edited)
-            except ValueError:
-                self.vm.last_edited = datetime.datetime.now()
-
+        # Jangan ubah self.vm.last_edited di sini!
+        last_edited_display = self.vm.last_edited
         if not init:
-            self.vm.last_edited = datetime.datetime.now()
+            last_edited_display = datetime.datetime.now()
+
+        if isinstance(last_edited_display, str):
+            try:
+                last_edited_display = datetime.datetime.fromisoformat(last_edited_display)
+            except ValueError:
+                last_edited_display = datetime.datetime.now()
 
         last_edit_str = (
-            f"Terakhir diubah: {self.vm.last_edited.strftime('%d %B %Y %H:%M:%S')}"
-            if self.vm.last_edited else "Terakhir diubah: -"
+            f"Terakhir diubah: {last_edited_display.strftime('%d %B %Y %H:%M:%S')}"
+            if last_edited_display else "Terakhir diubah: -"
         )
         self.last_edited_label.setText(last_edit_str)
     

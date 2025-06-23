@@ -47,14 +47,14 @@ class CardService:
             CardViewModel(
                 id=row[0],
                 test_name=row[1],
-                tester_name=row[10],  # ini adalah nama tester dari tabel testers
-                last_edited=row[8],
+                tester_id=row[2],
+                tester_name=row[3],
                 fragment_inside=row[4],
                 fragment_outside=row[5],
                 total_fragments=row[6],
                 image_path=row[7],
-                tester_id=row[3],  # asumsi row[3] adalah tester_id jika ikut dimunculkan
-                inference_time=row[9]
+                last_edited=row[8],
+                inference_time=row[9],
             )
             for row in raw_data
         ]

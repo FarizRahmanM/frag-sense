@@ -41,7 +41,7 @@ def run_detection(img_path, edge_colors=None, centroid_colors=None, alpha=0.5):
     # ⏱️ Mulai hitung inference time
     start_time = time.time()
     results = model(img)
-    inference_time = time.time() - start_time
+    inference_time = time.time() - start_time   
 
     result = results[0]
     img_mask_only = img.copy()

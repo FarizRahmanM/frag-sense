@@ -30,7 +30,9 @@ class ResultView(QWidget):
         main_layout.setContentsMargins(0, 0, 0, 0)
 
         # Header
-        main_layout.addWidget(HeaderView())
+        self.header = HeaderView()
+        self.header.set_history_button_visible(False)  # ⬅️ Sembunyikan tombol Riwayat
+        main_layout.addWidget(self.header)
 
         # Tombol back
         back_label = QLabel("← Kembali")
@@ -90,9 +92,13 @@ class ResultView(QWidget):
         self.update_arrow_visibility()
         self.card_widgets = []
 
-    def set_result(self, image_paths: List[str], fragments_inside: List[int], fragments_outside: List[int], inference_times: List[float], last_edited=None):
-        test_date = datetime.date.today().strftime("%d %B %Y")
-        test_time = datetime.datetime.now().strftime("%H:%M:%S")
+    def set_result(self, image_paths: List[str], fragments_inside: List[int],
+               fragments_outside: List[int], inference_times: List[float],
+               last_edited=None, preserve_existing_time=False):
+
+        now = datetime.datetime.now()
+        test_date = now.strftime("%d %B %Y")
+        test_time = now.strftime("%H:%M:%S")
 
         for i, image_path in enumerate(image_paths):
             fragment_inside = fragments_inside[i]
@@ -106,8 +112,8 @@ class ResultView(QWidget):
 
             card_vm = CardViewModel(
                 test_name=f"Hasil Deteksi {i + 1}",
-                date=test_date,
-                time=test_time,
+                date=self.cards[i].test_date if preserve_existing_time and i < len(self.cards) else test_date,
+                time=self.cards[i].test_time if preserve_existing_time and i < len(self.cards) else test_time,
                 total_fragments=total_fragments,
                 image=image_path_full,
                 fragment_inside=fragment_inside,
@@ -177,6 +183,14 @@ class ResultView(QWidget):
         self.right_button.setVisible(self.current_index < self.carousel.count() - 1)
 
     def back_button_click(self, event):
+        # Hapus semua card yang belum disimpan
+        self.clear_stack()  # Bersihkan dari carousel
+        CardService.instance().cards.clear()  # Bersihkan dari service
+        self.cards = []  # Kosongkan variabel lokal juga
+        self.current_index = 0
+        self.update_arrow_visibility()
+
+        # Navigasi kembali
         if self.main_window:
             self.main_window.go_back()
 

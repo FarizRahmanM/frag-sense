@@ -6,7 +6,7 @@ from PySide6.QtWidgets import (
 from PySide6.QtGui import QPixmap, QPainter, QPen
 from PySide6.QtCore import Qt, Signal
 from utils import resource_path
-
+import re
 
 # Label custom agar bisa diklik
 class ClickableLabel(QLabel):
@@ -18,18 +18,20 @@ class ClickableLabel(QLabel):
 
 class CardViewModel:
     def __init__(self, id=None, test_name=None, date=None, time=None, total_fragments=0, image=None,
-                 tester_name=None, fragment_inside=0, fragment_outside=0, status="", last_edited=None):
+                 tester_name=None, fragment_inside=0, fragment_outside=0, status="", last_edited=None, tester_id=None, inference_time=None):
         self.id = id
         self.test_name = test_name
-        self.test_date = date or datetime.date.today().strftime("%d %B %Y")
-        self.test_time = time or datetime.datetime.now().strftime("%H:%M:%S")
+        self.test_date = date  # ❌ Hapus fallback waktu sekarang
+        self.test_time = time  # ❌ Jangan isi otomatis
         self.jumlah_fragmen = total_fragments
         self.image_path = image
+        self.tester_id = tester_id
         self.tester_name = tester_name
         self.fragment_inside = fragment_inside
         self.fragment_outside = fragment_outside
         self.status = status
         self.last_edited = last_edited or datetime.datetime.now()
+        self.inference_time = inference_time or 0.0
         
     @property
     def total_fragments(self):
@@ -37,6 +39,7 @@ class CardViewModel:
 
 
 class CardWidget(QWidget):
+    validity_changed = Signal(bool)
     def __init__(self, vm: CardViewModel):
         super().__init__()
         self.vm = vm
@@ -84,13 +87,19 @@ class CardWidget(QWidget):
         # Nama Penguji
         label_penguji = QLabel("Nama Penguji")
         self.input_penguji = QComboBox()
-        self.input_penguji.addItems([
-            "G. Agus Permana Putra Sujana",
-            "Sumarlin Manalu",
-            "Adi Irawan",
-            "Rivaldi Pamungkas",
-            "Chandra Taufik Rahman"
-        ])
+        self.tester_map = {}  # id -> name
+        self.input_penguji.clear()
+
+        from model.database import get_all_testers
+        for tester_id, name in get_all_testers():
+            self.input_penguji.addItem(name, userData=tester_id)
+            self.tester_map[name] = tester_id
+
+        # Set nilai awal
+        if self.vm.tester_name:
+            index = self.input_penguji.findText(self.vm.tester_name)
+            if index != -1:
+                self.input_penguji.setCurrentIndex(index)
         self.input_penguji.setStyleSheet("""
             QComboBox {
                 border: 2px solid black;
@@ -158,7 +167,13 @@ class CardWidget(QWidget):
         self.last_edited_label.setStyleSheet("font-size: 12px; color: black; font-weight: bold;")
         self.update_last_edited_time(init=True) 
         waktu_layout.addWidget(self.last_edited_label)
-        
+
+        # Label waktu inference
+        self.inference_time_label = QLabel()
+        self.inference_time_label.setStyleSheet("font-size: 12px; color: black; font-weight: bold;")
+        self.update_inference_time_label()
+        waktu_layout.addWidget(self.inference_time_label)
+                
 
         # Tambahkan ke form layout
         form_layout.addWidget(label_uji)
@@ -185,6 +200,8 @@ class CardWidget(QWidget):
         self.update_counts()
         self.layout.addWidget(outer)
         self.input_uji.textChanged.connect(self.update_last_edited_time)
+        self.input_uji.textChanged.connect(self.validate_test_name)
+        self.validate_test_name()
         self.input_penguji.currentIndexChanged.connect(self.update_last_edited_time)
 
     def update_counts(self):
@@ -234,27 +251,74 @@ class CardWidget(QWidget):
     def card_data(self):
         self.vm.test_name = self.input_uji.text()
         self.vm.tester_name = self.input_penguji.currentText()
-        print(f"DEBUG: Saving Card: test_name={self.vm.test_name}, tester_name={self.vm.tester_name}, inside={self.vm.fragment_inside}, outside={self.vm.fragment_outside}")
+        self.vm.tester_id = self.input_penguji.currentData()
+        
+        if not self.vm.test_time:
+            self.vm.test_time = datetime.datetime.now().strftime("%H:%M:%S")
+        
+        print(f"DEBUG: Saving Card: test_name={self.vm.test_name}, tester_id={self.vm.tester_id}, inside={self.vm.fragment_inside}, outside={self.vm.fragment_outside}, test_time={self.vm.test_time}")
+        
+        self.vm.last_edited = datetime.datetime.now()
         return self.vm
         
     def update_last_edited_time(self, init=False):
-        print("DEBUG - last_edited di UI:", self.vm.last_edited)
-
-        
-        if isinstance(self.vm.last_edited, str):
-            try:
-                self.vm.last_edited = datetime.datetime.fromisoformat(self.vm.last_edited)
-            except ValueError:
-                self.vm.last_edited = datetime.datetime.now()
-
+        # Jangan ubah self.vm.last_edited di sini!
+        last_edited_display = self.vm.last_edited
         if not init:
-            self.vm.last_edited = datetime.datetime.now()
+            last_edited_display = datetime.datetime.now()
+
+        if isinstance(last_edited_display, str):
+            try:
+                last_edited_display = datetime.datetime.fromisoformat(last_edited_display)
+            except ValueError:
+                last_edited_display = datetime.datetime.now()
 
         last_edit_str = (
-            f"Terakhir diubah: {self.vm.last_edited.strftime('%d %B %Y %H:%M:%S')}"
-            if self.vm.last_edited else "Terakhir diubah: -"
+            f"Terakhir diubah: {last_edited_display.strftime('%d %B %Y %H:%M:%S')}"
+            if last_edited_display else "Terakhir diubah: -"
         )
         self.last_edited_label.setText(last_edit_str)
+    
+    def update_inference_time_label(self):
+        if self.vm.inference_time is not None:
+            self.inference_time_label.setText(f"Waktu Inference: {self.vm.inference_time:.3f} detik")
+        else:
+            self.inference_time_label.setText("Waktu Inference: -")
+    
+    def validate_test_name(self):
+        text = self.input_uji.text()
+        pattern = r"^\d{2}-\d{1,2}/[A-Z0-9]+/[A-Z]{2}-\d{2}/20\d{2}$"
+        match = re.match(pattern, text)
+
+        # Validasi bulan dan tahun
+        valid = False
+        if match:
+            try:
+                bagian = text.split("/")
+                bulan = int(bagian[2].split("-")[1])
+                tahun = bagian[3]
+                valid = 1 <= bulan <= 12 and len(tahun) == 4
+            except:
+                valid = False
+
+        # 🌟 Tambahkan feedback visual
+        if not text.strip():  # kosong
+            border_color = "black"
+        elif valid:
+            border_color = "green"
+        else:
+            border_color = "red"
+
+        self.input_uji.setStyleSheet(f"""
+            QLineEdit {{
+                border: 2px solid {border_color};
+                border-radius: 4px;
+                padding: 4px;
+            }}
+        """)
+
+        # Kirim sinyal
+        self.validity_changed.emit(valid)
 
 class ImagePopup(QDialog):
     def __init__(self, image_path):
@@ -306,3 +370,4 @@ class ImagePopup(QDialog):
 
         painter.end()
         self.image_label.setPixmap(temp_pixmap)
+    

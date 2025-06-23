@@ -4,8 +4,9 @@ from PySide6.QtWidgets import (
 )
 from PySide6.QtGui import QPixmap, QImage, QDragEnterEvent, QDropEvent, QMouseEvent, QIcon
 from PySide6.QtCore import Qt, QTimer, QSize
-import cv2
 import os
+import cv2
+import datetime
 from detection.detector import run_detection
 from ui.component.header_view import HeaderView
 from utils import resource_path
@@ -88,6 +89,7 @@ class MainView(QWidget):
         self.detected_outputs = []
         self.detected_inside = []
         self.detected_outside = []
+        self.inference_times = []
         self.init_ui()
         self.fragment_button.clicked.connect(self.run_detection_on_images)
         
@@ -161,6 +163,16 @@ class MainView(QWidget):
         main_layout.addLayout(self.camera_footer)
         self.result_card_area = QVBoxLayout()
         main_layout.addLayout(self.result_card_area)
+
+        # Footer credit
+        credit_label = QLabel("Created by: Fariz Rahman & Raihan Shidqi")
+        credit_label.setStyleSheet("font-size: 15px; color: gray;")
+        credit_label.setAlignment(Qt.AlignLeft)
+
+        credit_layout = QHBoxLayout()
+        credit_layout.addWidget(credit_label)
+        credit_layout.addStretch()  # Agar tetap di kiri
+        main_layout.addLayout(credit_layout)
     
     def back_button_click(self, event):
         self.back_and_clear_cards()
@@ -239,26 +251,26 @@ class MainView(QWidget):
         )
         self.camera_feed.setPixmap(pixmap)
 
+
     def capture_image(self):
         ret, frame = self.capture.read()
         if ret:
-            # Buat folder "captured" jika belum ada
-            captured_folder = os.path.join(os.getcwd(), "captured")
-            if not os.path.exists(captured_folder):
-                os.makedirs(captured_folder)
-
-            # Buat nama file unik dengan timestamp
+            captured_folder = self.get_captured_folder()  # ✅ gunakan folder AppData
             timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
             filename = f"captured_{timestamp}.png"
             image_path = os.path.join(captured_folder, filename)
 
-            # Simpan gambar
             cv2.imwrite(image_path, frame)
-
-            # Tambahkan ke UI
             self.add_card(image_path)
 
         self.stop_camera()
+
+    def get_captured_folder():
+        appdata_dir = os.path.join(os.getenv("APPDATA"), "FragSense")
+        captured_folder = os.path.join(appdata_dir, "captured")
+        if not os.path.exists(captured_folder):
+            os.makedirs(captured_folder)
+        return captured_folder
 
     def stop_camera(self):
         if self.capture:
@@ -281,6 +293,7 @@ class MainView(QWidget):
         self.detected_outputs = []
         self.detected_inside = []
         self.detected_outside = []
+        self.inference_times = []
 
         self.progress_bar.setMaximum(len(self.cards))
         self.progress_bar.setValue(0)
@@ -291,12 +304,15 @@ class MainView(QWidget):
 
     def process_next_image(self):
         if self.current_index >= len(self.cards):
-            # Semua selesai
+                # Semua selesai
             self.progress_bar.setVisible(False)
             self.fragment_button.setEnabled(True)
 
             self.show_result_callback(
-                self.detected_outputs, self.detected_inside, self.detected_outside
+                self.detected_outputs,
+                self.detected_inside,
+                self.detected_outside,
+                self.inference_times  # ✅ Tambahkan ini
             )
             return
 
@@ -308,10 +324,11 @@ class MainView(QWidget):
         self.worker.start()
 
 
-    def on_detection_finished(self, output_path, inside, outside):
+    def on_detection_finished(self, output_path, inside, outside, inference_time):
         self.detected_outputs.append(output_path)
         self.detected_inside.append(inside)
         self.detected_outside.append(outside)
+        self.inference_times.append(inference_time)
 
         self.current_index += 1
         self.progress_bar.setValue(self.current_index)

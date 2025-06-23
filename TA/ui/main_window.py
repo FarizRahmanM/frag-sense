@@ -41,7 +41,7 @@ class MainWindow(QMainWindow):
 
         # Atur visibilitas tombol Riwayat jika widget punya HeaderView
         if hasattr(widget, "header"):
-            if isinstance(widget, type(self.history_view)):
+            if widget in [self.history_view, self.result_view]:
                 widget.header.set_history_button_visible(False)
             else:
                 widget.header.set_history_button_visible(True)
@@ -51,8 +51,8 @@ class MainWindow(QMainWindow):
     def show_history(self):
         self.navigate(self.history_view)
 
-    def show_result(self, image_paths, fragments_inside, fragments_outside):
-        self.result_view.set_result(image_paths, fragments_inside, fragments_outside)
+    def show_result(self, image_paths, fragments_inside, fragments_outside, inference_times):
+        self.result_view.set_result(image_paths, fragments_inside, fragments_outside, inference_times)
         self.navigate(self.result_view)
 
     def go_back(self):

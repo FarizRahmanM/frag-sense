@@ -123,6 +123,7 @@ class DetailView(QWidget):
     def save_and_navigate(self):
         if self.main_window:
             edited_card = self.card_widget.card_data()
+            print("Before Save:", edited_card.test_time)
 
             # Update ke DB
             CardService.instance().update_to_db(edited_card)

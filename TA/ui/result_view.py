@@ -1,7 +1,7 @@
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QLabel, QPushButton, QStackedWidget, QHBoxLayout,
 )
-from PySide6.QtCore import Qt, Slot
+from PySide6.QtCore import Qt, Slot, Signal
 from ui.component.header_view import HeaderView
 from ui.component.card_view import CardWidget, CardViewModel
 from ui.component.delete_view import DeleteDialog
@@ -9,14 +9,17 @@ from services.card_service import CardService
 import datetime
 from typing import List  # opsional, jika kamu mau
 from utils import resource_path
-
+import re
 
 class ResultView(QWidget):
+    validity_changed = Signal(bool)
     def __init__(self, main_window=None):
+
         super().__init__()
         self.main_window = main_window
         self.cards = CardService.instance().cards
         self.current_index = 0
+        
 
         self.delete_dialog = DeleteDialog()
         self.delete_dialog.accepted.connect(self.on_delete_confirmed)
@@ -27,7 +30,9 @@ class ResultView(QWidget):
         main_layout.setContentsMargins(0, 0, 0, 0)
 
         # Header
-        main_layout.addWidget(HeaderView())
+        self.header = HeaderView()
+        self.header.set_history_button_visible(False)  # ⬅️ Sembunyikan tombol Riwayat
+        main_layout.addWidget(self.header)
 
         # Tombol back
         back_label = QLabel("← Kembali")
@@ -68,9 +73,9 @@ class ResultView(QWidget):
         button_layout.setSpacing(20)
         button_layout.setContentsMargins(0, 0, 0, 20)  # beri margin bawah
 
-        save_button = QPushButton("Simpan Hasil")
-        save_button.setStyleSheet("padding: 8px 16px; background-color: #3B89FF; color: white; font-weight: 600;")
-        save_button.clicked.connect(self.save_button_click)
+        self.save_button = QPushButton("Simpan Hasil")
+        self.save_button.setStyleSheet("padding: 8px 16px; background-color: #3B89FF; color: white; font-weight: 600;")
+        self.save_button.clicked.connect(self.save_button_click)
 
         delete_button = QPushButton("Hapus")
         delete_button.setStyleSheet(
@@ -80,43 +85,48 @@ class ResultView(QWidget):
 
         button_layout.addStretch()
         button_layout.addWidget(delete_button)
-        button_layout.addWidget(save_button)
+        button_layout.addWidget(self.save_button)
         button_layout.addStretch()
 
         main_layout.addLayout(button_layout)
         self.update_arrow_visibility()
+        self.card_widgets = []
 
-    def set_result(self, image_paths: List[str], fragments_inside: List[int], fragments_outside: List[int], last_edited=None):
-        test_date = datetime.date.today().strftime("%d %B %Y")
-        test_time = datetime.datetime.now().strftime("%H:%M:%S")
+    def set_result(self, image_paths: List[str], fragments_inside: List[int],
+               fragments_outside: List[int], inference_times: List[float],
+               last_edited=None, preserve_existing_time=False):
+
+        now = datetime.datetime.now()
+        test_date = now.strftime("%d %B %Y")
+        test_time = now.strftime("%H:%M:%S")
 
         for i, image_path in enumerate(image_paths):
             fragment_inside = fragments_inside[i]
             fragment_outside = fragments_outside[i]
+            inference_time = inference_times[i]
             total_fragments = fragment_inside + (fragment_outside * 0.5)
 
             status = "PASS" if 40 <= total_fragments <= 400 else "FAIL"
 
-            image_path_full = resource_path(image_path)  # satu per satu
+            image_path_full = resource_path(image_path)
 
             card_vm = CardViewModel(
-            test_name=f"Hasil Deteksi {i + 1}",
-            date=test_date,
-            time=test_time,
-            total_fragments=total_fragments,
-            image=image_path_full,
-            fragment_inside=fragment_inside,
-            fragment_outside=fragment_outside,
-            last_edited=last_edited,
-            status=status  
-        )
-            # Simpan data model ke service
+                test_name=f"Hasil Deteksi {i + 1}",
+                date=self.cards[i].test_date if preserve_existing_time and i < len(self.cards) else test_date,
+                time=self.cards[i].test_time if preserve_existing_time and i < len(self.cards) else test_time,
+                total_fragments=total_fragments,
+                image=image_path_full,
+                fragment_inside=fragment_inside,
+                fragment_outside=fragment_outside,
+                last_edited=last_edited,
+                status=status,
+                inference_time=inference_time  # ✅
+            )
             CardService.instance().add_card(card_vm)
-
 
         self.cards = CardService.instance().cards
         self.populate_cards()
-        self.current_index = self.carousel.count() - 1  # set ke terakhir
+        self.current_index = self.carousel.count() - 1
         self.carousel.setCurrentIndex(self.current_index)
         self.update_arrow_visibility()
 
@@ -130,8 +140,15 @@ class ResultView(QWidget):
 
     def populate_cards(self):
         self.clear_stack()
+        self.card_widgets = []  # ✅ Reset
+
         for card_vm in self.cards:
             card_widget = CardWidget(card_vm)
+
+            # Connect signal validasi
+            card_widget.validity_changed.connect(self.update_save_button_state)
+
+            self.card_widgets.append(card_widget)  # ✅ Simpan referensi
 
             container = QWidget()
             h_layout = QHBoxLayout(container)
@@ -144,6 +161,8 @@ class ResultView(QWidget):
             container.setMinimumHeight(card_widget.sizeHint().height())
 
             self.carousel.addWidget(container)
+
+        self.update_save_button_state()
 
     @Slot()
     def next(self):
@@ -164,6 +183,14 @@ class ResultView(QWidget):
         self.right_button.setVisible(self.current_index < self.carousel.count() - 1)
 
     def back_button_click(self, event):
+        # Hapus semua card yang belum disimpan
+        self.clear_stack()  # Bersihkan dari carousel
+        CardService.instance().cards.clear()  # Bersihkan dari service
+        self.cards = []  # Kosongkan variabel lokal juga
+        self.current_index = 0
+        self.update_arrow_visibility()
+
+        # Navigasi kembali
         if self.main_window:
             self.main_window.go_back()
 
@@ -222,3 +249,31 @@ class ResultView(QWidget):
 
     def on_delete_canceled(self):
         self.delete_dialog.close()
+
+
+    def update_save_button_state(self):
+        all_valid = all([
+            widget.input_uji and re.match(r"^\d{2}-\d{1,2}/[A-Z0-9]+/[A-Z]{2}-\d{2}/20\d{2}$", widget.input_uji.text())
+            for widget in self.card_widgets
+        ])
+
+        # Cek validasi tambahan (bulan dan tahun)
+        for widget in self.card_widgets:
+            text = widget.input_uji.text()
+            try:
+                bagian = text.split("/")
+                bulan = int(bagian[2].split("-")[1])
+                tahun = bagian[3]
+                if not (1 <= bulan <= 12 and len(tahun) == 4):
+                    all_valid = False
+            except:
+                all_valid = False
+
+        self.save_button.setEnabled(all_valid)
+
+
+    def update_inference_time_label(self):
+        if self.vm.inference_time is not None:
+            self.inference_time_label.setText(f"Waktu Inference: {self.vm.inference_time:.3f} detik")
+        else:
+            self.inference_time_label.setText("Waktu Inference: -")

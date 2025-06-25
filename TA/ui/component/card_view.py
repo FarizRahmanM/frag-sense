@@ -17,12 +17,12 @@ class ClickableLabel(QLabel):
 
 
 class CardViewModel:
-    def __init__(self, id=None, test_name=None, date=None, time=None, total_fragments=0, image=None,
+    def __init__(self, id=None, test_name=None, date=None,  test_time=None, total_fragments=0, image=None,
                  tester_name=None, fragment_inside=0, fragment_outside=0, status="", last_edited=None, tester_id=None, inference_time=None):
         self.id = id
         self.test_name = test_name
-        self.test_date = date  # ❌ Hapus fallback waktu sekarang
-        self.test_time = time  # ❌ Jangan isi otomatis
+        self.test_date = date
+        self.test_time = test_time
         self.jumlah_fragmen = total_fragments
         self.image_path = image
         self.tester_id = tester_id
@@ -30,7 +30,7 @@ class CardViewModel:
         self.fragment_inside = fragment_inside
         self.fragment_outside = fragment_outside
         self.status = status
-        self.last_edited = last_edited or datetime.datetime.now()
+        self.last_edited = last_edited
         self.inference_time = inference_time or 0.0
         
     @property
@@ -121,8 +121,12 @@ class CardWidget(QWidget):
         self.fragmen_inside_count.setStyleSheet("font-size: 25px; font-weight: bold;")
 
         inside_minus_btn = QPushButton("-")
+        inside_minus_btn.setFixedSize(40, 40)  # ⬅️ Ukuran diperbesar
+        inside_minus_btn.setStyleSheet("font-size: 20px; font-weight: bold;")
         inside_minus_btn.clicked.connect(self.decrement_fragmen_inside)
         inside_plus_btn = QPushButton("+")
+        inside_plus_btn.setFixedSize(40, 40)
+        inside_plus_btn.setStyleSheet("font-size: 20px; font-weight: bold;")
         inside_plus_btn.clicked.connect(self.increment_fragmen_inside)
 
         fragmen_inside_layout = QHBoxLayout()
@@ -137,8 +141,12 @@ class CardWidget(QWidget):
         self.fragmen_outside_count.setStyleSheet("font-size: 25px; font-weight: bold;")
 
         outside_minus_btn = QPushButton("-")
+        outside_minus_btn.setFixedSize(40, 40)
+        outside_minus_btn.setStyleSheet("font-size: 20px; font-weight: bold;")
         outside_minus_btn.clicked.connect(self.decrement_fragmen_outside)
         outside_plus_btn = QPushButton("+")
+        outside_plus_btn.setFixedSize(40, 40)
+        outside_plus_btn.setStyleSheet("font-size: 20px; font-weight: bold;")
         outside_plus_btn.clicked.connect(self.increment_fragmen_outside)
 
         fragmen_outside_layout = QHBoxLayout()
@@ -158,8 +166,8 @@ class CardWidget(QWidget):
 
         # Waktu
         waktu_layout = QVBoxLayout()
-        waktu_layout.addWidget(QLabel(self.vm.test_date))
-        waktu_layout.addWidget(QLabel(self.vm.test_time))
+        waktu_layout.addWidget(QLabel(f"Tanggal Uji: {self.vm.test_date}"))
+        waktu_layout.addWidget(QLabel(f"Waktu Uji: {self.vm.test_time}"))
 
         
         # Tambahkan label waktu update
@@ -253,13 +261,14 @@ class CardWidget(QWidget):
         self.vm.tester_name = self.input_penguji.currentText()
         self.vm.tester_id = self.input_penguji.currentData()
         
-        if not self.vm.test_time:
+        # Hanya tetapkan waktu jika data baru (id None)
+        if self.vm.id is None:
             self.vm.test_time = datetime.datetime.now().strftime("%H:%M:%S")
-        
-        print(f"DEBUG: Saving Card: test_name={self.vm.test_name}, tester_id={self.vm.tester_id}, inside={self.vm.fragment_inside}, outside={self.vm.fragment_outside}, test_time={self.vm.test_time}")
-        
+
+        print(f"DEBUG: Saving Card: ID={self.vm.id}, test_time={self.vm.test_time}")
         self.vm.last_edited = datetime.datetime.now()
         return self.vm
+
         
     def update_last_edited_time(self, init=False):
         # Jangan ubah self.vm.last_edited di sini!

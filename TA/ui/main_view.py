@@ -265,7 +265,7 @@ class MainView(QWidget):
 
         self.stop_camera()
 
-    def get_captured_folder():
+    def get_captured_folder(self):
         appdata_dir = os.path.join(os.getenv("APPDATA"), "FragSense")
         captured_folder = os.path.join(appdata_dir, "captured")
         if not os.path.exists(captured_folder):

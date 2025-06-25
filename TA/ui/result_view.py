@@ -48,7 +48,11 @@ class ResultView(QWidget):
         # Tombol kiri
         self.left_button = QPushButton("←")
         self.left_button.setFixedWidth(50)
-        self.left_button.setStyleSheet("background: transparent;")
+        self.left_button.setStyleSheet("""
+            background: transparent;
+            font-size: 24px;
+            font-weight: bold;
+        """)
         self.left_button.clicked.connect(self.previous)
         middle_layout.addWidget(self.left_button, alignment=Qt.AlignLeft | Qt.AlignVCenter)
 
@@ -59,7 +63,11 @@ class ResultView(QWidget):
         # Tombol kanan
         self.right_button = QPushButton("→")
         self.right_button.setFixedWidth(50)
-        self.right_button.setStyleSheet("background: transparent;")
+        self.right_button.setStyleSheet("""
+            background: transparent;
+            font-size: 24px;
+            font-weight: bold;
+        """)
         self.right_button.clicked.connect(self.next)
         middle_layout.addWidget(self.right_button, alignment=Qt.AlignRight | Qt.AlignVCenter)
 
@@ -113,7 +121,7 @@ class ResultView(QWidget):
             card_vm = CardViewModel(
                 test_name=f"Hasil Deteksi {i + 1}",
                 date=self.cards[i].test_date if preserve_existing_time and i < len(self.cards) else test_date,
-                time=self.cards[i].test_time if preserve_existing_time and i < len(self.cards) else test_time,
+                test_time=self.cards[i].test_time if preserve_existing_time and i < len(self.cards) else test_time,
                 total_fragments=total_fragments,
                 image=image_path_full,
                 fragment_inside=fragment_inside,
@@ -203,7 +211,7 @@ class ResultView(QWidget):
             container = self.carousel.widget(i)
             card_widget = container.layout().itemAt(1).widget()  # Ambil CardWidget dari container
             card_vm = card_widget.card_data()
-            CardService.instance().save_to_database(card_vm)
+            CardService.instance().save_or_update(card_vm)
 
         # Hapus semua card dari service dan UI
         CardService.instance().cards.clear()  # Kosongkan daftar card

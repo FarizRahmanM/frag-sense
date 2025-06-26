@@ -24,6 +24,7 @@ class DetailView(QWidget):
         super().__init__()
         self.main_window = main_window
         self.selected_card = selected_card
+        self.original_card = selected_card
 
         self.setStyleSheet("font-family: Arial; font-size: 14px;")
         layout = QVBoxLayout(self)
@@ -84,15 +85,20 @@ class DetailView(QWidget):
         left_buttons = QHBoxLayout()
         left_buttons.setSpacing(20)
 
-        delete_btn = QPushButton("Hapus")
-        delete_btn.setStyleSheet("color: #FF0000; background: white; padding: 8px; font-weight: 600;")
-        delete_btn.clicked.connect(self.show_delete_popup)
+
+        
+        export_btn = QPushButton("Unduh Data")
+        export_btn.setStyleSheet("color: black; background: #C2E7FF; padding: 8px; font-weight: 600;")
+        export_btn.clicked.connect(self.export_to_excel)
+        
+
+        
 
         save_btn = QPushButton("Simpan Hasil Edit")
         save_btn.setStyleSheet("color: white; background: #3B89FF; padding: 8px; font-weight: 600;")
         save_btn.clicked.connect(self.save_and_navigate)
 
-        left_buttons.addWidget(delete_btn)
+        left_buttons.addWidget(export_btn)
         left_buttons.addWidget(save_btn)
 
         # Spacer di tengah untuk mendorong tombol kanan ke ujung
@@ -100,10 +106,10 @@ class DetailView(QWidget):
 
         # Layout untuk tombol kanan
         right_buttons = QHBoxLayout()
-        export_btn = QPushButton("Unduh Data")
-        export_btn.setStyleSheet("color: black; background: #C2E7FF; padding: 8px; font-weight: 600;")
-        export_btn.clicked.connect(self.export_to_excel)
-        right_buttons.addWidget(export_btn)
+        delete_btn = QPushButton("Hapus")
+        delete_btn.setStyleSheet("color: #FF0000; background: white; padding: 8px; font-weight: 600;")
+        delete_btn.clicked.connect(self.show_delete_popup)
+        right_buttons.addWidget(delete_btn)
 
         # Tambahkan ke layout utama
         button_layout.addLayout(left_buttons)
@@ -125,10 +131,14 @@ class DetailView(QWidget):
             edited_card = self.card_widget.card_data()
             print("Before Save:", edited_card.test_time)
 
-            # Update ke DB
-            CardService.instance().update_to_db(edited_card)
-
-            # Navigasi ke halaman riwayat
+            # ⛔ Jangan timpa test_time untuk data lama
+            if edited_card.id is not None:
+                edited_card.test_time = self.original_card.test_time    
+                
+            print("⏱ original_card.test_time =", self.original_card.test_time)
+            print("⏱ edited_card.test_time (AFTER OVERRIDE) =", edited_card.test_time)
+            print(f"📝 Akan Simpan: ID={edited_card.id}, test_time={edited_card.test_time}")
+            CardService.instance().save_or_update(edited_card)
             self.main_window.show_history()
             
 

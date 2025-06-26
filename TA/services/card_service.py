@@ -34,7 +34,8 @@ class CardService:
             total_fragment=card.total_fragments,
             image_path=card.image_path,
             inference_time=card.inference_time,
-            last_edited=last_edited
+            last_edited=last_edited,
+            test_time=card.test_time
         )
         except Exception as e:
             print("❌ Gagal menyimpan data:", e)
@@ -43,21 +44,7 @@ class CardService:
     def get_all_from_db(self):
         try:
             raw_data = get_all_detections()
-            return [
-            CardViewModel(
-                id=row[0],
-                test_name=row[1],
-                tester_id=row[2],
-                tester_name=row[3],
-                fragment_inside=row[4],
-                fragment_outside=row[5],
-                total_fragments=row[6],
-                image_path=row[7],
-                last_edited=row[8],
-                inference_time=row[9],
-            )
-            for row in raw_data
-        ]
+            return raw_data  # ⬅️ langsung kembalikan hasil dari get_all_detections
         except Exception as e:
             print("❌ Gagal mengambil data dari DB:", e)
             return []
@@ -67,3 +54,12 @@ class CardService:
             update_detection(card)
         except Exception as e:
             print("❌ Gagal update data:", e)
+
+    def save_or_update(self, card: CardViewModel):
+        print(f"📝 Akan Simpan: ID={card.id}, test_time={card.test_time}")
+        if card.id is None:
+            print("🟢 Menyimpan data baru...")
+            self.save_to_database(card)
+        else:
+            print("🟡 Memperbarui data lama (id =", card.id, ")...")
+            self.update_to_db(card)

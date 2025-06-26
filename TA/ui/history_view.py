@@ -49,6 +49,19 @@ class HistoryView(QWidget):
         back_btn.mousePressEvent = self.back_button_click
         content_layout.addWidget(back_btn)
 
+
+        # Select All - Halaman Saat Ini
+        select_page_btn = QPushButton("Pilih Semua (Halaman Ini)")
+        select_page_btn.setStyleSheet("color: black; background: #C2E7FF; padding: 6px; font-weight: bold;")
+        select_page_btn.clicked.connect(self.toggle_select_all_on_current_page)
+        
+
+        # Select All - Semua Halaman
+        select_all_btn = QPushButton("Pilih Semua (Semua Data)")
+        select_all_btn.setStyleSheet("color: black; background: #C2E7FF; padding: 6px; font-weight: bold;")
+        select_all_btn.clicked.connect(self.toggle_select_all_across_all_pages)
+        
+
         # Judul dan tombol ekspor
         header_layout = QHBoxLayout()
         title = QLabel("Riwayat Pengujian")
@@ -56,9 +69,9 @@ class HistoryView(QWidget):
         title.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
 
         self.export_btn = QPushButton("Unduh Data")
-        self.export_btn.setFixedWidth(150)
+        self.export_btn.setFixedWidth(100)
         self.export_btn.setStyleSheet(
-            "color: black; background: #C2E7FF; padding: 8px; font-weight: bold;"
+            "color: black; background: #D2F8D2; padding: 6px; font-weight: bold;"
         )
         self.export_btn.clicked.connect(self.export_selected_to_excel)
 
@@ -73,22 +86,22 @@ class HistoryView(QWidget):
             "Urutkan: Hasil Uji - PASS",
             "Urutkan: Hasil Uji - FAIL",
         ])
-        self.sort_combo.setFixedWidth(200)
+        self.sort_combo.setFixedWidth(180)
         self.sort_combo.currentIndexChanged.connect(self.apply_filters)
 
         manage_testers_btn = QPushButton("Kelola Penguji")
         manage_testers_btn.setStyleSheet(
-            "color: black; background: #FCE38A; padding: 8px; font-weight: bold;"
+            "color: black; background: #C2E7FF; padding: 6px; font-weight: bold;"
         )
-        manage_testers_btn.setFixedWidth(150)
+        manage_testers_btn.setFixedWidth(100)
         manage_testers_btn.clicked.connect(self.show_manage_testers_dialog)
 
 
         # Tombol Hapus
         self.delete_btn = QPushButton("Hapus Data")
-        self.delete_btn.setFixedWidth(120)
+        self.delete_btn.setFixedWidth(100)
         self.delete_btn.setStyleSheet(
-            "color: black; background: #FFBABA; padding: 8px; font-weight: bold;"
+            "color: black; background: #FFBABA; padding: 6px; font-weight: bold;"
         )
         self.delete_btn.clicked.connect(self.delete_selected_rows)
         
@@ -100,22 +113,14 @@ class HistoryView(QWidget):
         self.select_all_checkbox.setEnabled(False)
         self.select_all_checkbox.setStyleSheet("font-weight: bold;")
         header_layout.addWidget(self.select_all_checkbox)
-        header_layout.addWidget(manage_testers_btn)
         header_layout.addWidget(self.export_btn)
+        header_layout.addWidget(manage_testers_btn)
+        header_layout.addWidget(select_page_btn)
+        header_layout.addWidget(select_all_btn)
         header_layout.addWidget(self.delete_btn)
         content_layout.addLayout(header_layout)
 
-        # Select All - Halaman Saat Ini
-        select_page_btn = QPushButton("Pilih Semua (Halaman Ini)")
-        select_page_btn.setStyleSheet("color: black; background: #D2F8D2; padding: 6px; font-weight: bold;")
-        select_page_btn.clicked.connect(self.toggle_select_all_on_current_page)
-        header_layout.addWidget(select_page_btn)
-
-        # Select All - Semua Halaman
-        select_all_btn = QPushButton("Pilih Semua (Semua Data)")
-        select_all_btn.setStyleSheet("color: black; background: #FFD2D2; padding: 6px; font-weight: bold;")
-        select_all_btn.clicked.connect(self.toggle_select_all_across_all_pages)
-        header_layout.addWidget(select_all_btn)
+        
 
         # Table widget dengan data awal
         self.table = TableWidget([])
@@ -155,11 +160,7 @@ class HistoryView(QWidget):
                 status = "FAIL"
             else:
                 status = "PASS"
-            
-            try:
-                test_time_dt = row.last_edited
-            except ValueError:
-                test_time_dt = datetime.now()
+        
 
             card_viewmodels.append(
                 CardViewModel(
@@ -169,8 +170,8 @@ class HistoryView(QWidget):
                     fragment_inside=row.fragment_inside,
                     fragment_outside=row.fragment_outside,
                     image=row.image_path,
-                    date = test_time_dt.strftime("%d %B %Y"),
-                    time = test_time_dt.strftime("%H:%M:%S"),
+                    date=row.test_date,  # ✅ Gunakan field asli dari DB
+                    test_time=row.test_time,  # ✅ Gunakan field asli dari DB
                     status=status,
                     last_edited=row.last_edited,
                     inference_time=row.inference_time
@@ -192,15 +193,12 @@ class HistoryView(QWidget):
         if self.card_to_delete:
             raw_cards = get_all_detections()
             for row in raw_cards:
-                try:
-                    test_time_dt = row.last_edited
-                except ValueError:
-                    test_time_dt = datetime.now()
+                
                 if (
                     row.test_name == self.card_to_delete.test_name and
                     row.tester_name == self.card_to_delete.tester_name and
-                    test_time_dt.strftime("%d %B %Y") == self.card_to_delete.test_date and
-                    test_time_dt.strftime("%H:%M:%S") == self.card_to_delete.test_time
+                    row.test_date == self.card_to_delete.test_date and
+                    row.test_time == self.card_to_delete.test_time
                 ):
                     delete_detection(row.id)
                     break
@@ -266,10 +264,6 @@ class HistoryView(QWidget):
             total_fragmen = row.fragment_inside + (row.fragment_outside / 2)
             status = "FAIL" if total_fragmen < 40 or total_fragmen > 400 else "PASS"
 
-            try:
-                test_time_dt = row.last_edited
-            except ValueError:
-                test_time_dt = datetime.now()
 
             card_viewmodels.append(CardViewModel(
                 id=row.id,
@@ -278,8 +272,8 @@ class HistoryView(QWidget):
                 fragment_inside=row.fragment_inside,
                 fragment_outside=row.fragment_outside,
                 image=row.image_path,
-                date=test_time_dt.strftime("%d %B %Y"),
-                time=test_time_dt.strftime("%H:%M:%S"),
+                date=row.test_date,  # ✅ Bukan dari last_edited
+                test_time=row.test_time,  # ✅ Bukan dari last_edited
                 status=status,
                 last_edited=row.last_edited,
                 inference_time=row.inference_time
@@ -491,25 +485,32 @@ class HistoryView(QWidget):
         self.update_table_view()
 
     def toggle_select_all_on_current_page(self):
-        # Pastikan map untuk halaman ini sudah siap
-        for card in self.table.cards:
-            card_id = str(card.id)
-            if card_id not in self.table.card_selection_map:
-                self.table.card_selection_map[card_id] = False
+        # Dapatkan ID semua kartu di halaman ini
+        current_page_ids = [str(card.id) for card in self.table.cards]
+        
+        # Cek apakah semua di halaman ini sudah dicentang
+        all_selected = all(self.table.card_selection_map.get(cid, False) for cid in current_page_ids)
+        new_state = not all_selected  # Toggle
 
-        visible_ids = [str(cid) for cid in self.table.checkbox_map.keys()]
-        all_visible_selected = all(self.table.card_selection_map.get(cid, False) for cid in visible_ids)
-        new_state = not all_visible_selected
-
-        for cid in visible_ids:
+        # Terapkan toggle ke halaman ini
+        for cid in current_page_ids:
             self.table.card_selection_map[cid] = new_state
-            checkbox = self.table.checkbox_map[cid]
-            checkbox.blockSignals(True)
-            checkbox.setChecked(new_state)
-            checkbox.blockSignals(False)
+            if cid in self.table.checkbox_map:
+                checkbox = self.table.checkbox_map[cid]
+                checkbox.blockSignals(True)
+                checkbox.setChecked(new_state)
+                checkbox.blockSignals(False)
+
+        # Unselect semua item di halaman lain
+        for card in self.filtered_cards:
+            cid = str(card.id)
+            if cid not in current_page_ids:
+                self.table.card_selection_map[cid] = False
 
         self.update_select_all_status()
         self.table.checkbox_changed.emit()
+        self.update_table_view()
+
         
 
     def update_select_all_status(self):

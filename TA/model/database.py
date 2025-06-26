@@ -75,12 +75,13 @@ def init_db():
         conn.commit()
 
 def create_detection(test_name, tester_id, fragment_inside, fragment_outside, total_fragment,
-                     image_path, inference_time=None, last_edited=None):
+                     image_path, inference_time=None, last_edited=None, test_time=None):  # 🆕 Tambahkan test_time
     print("🔵 INSERT (create_detection) dipanggil")
     with connect() as conn:
         cursor = conn.cursor()
         now = datetime.now()
-        test_time = now.strftime("%H:%M:%S")
+
+        test_time = test_time or now.strftime("%H:%M:%S")  # 🆕 Gunakan test_time jika sudah diberikan
         last_edited = last_edited or now.isoformat()
 
         cursor.execute("""
@@ -112,18 +113,20 @@ def get_all_detections():
         status = "PASS" if 40 <= total_fragmen <= 400 else "FAIL"
 
         try:
-            test_time_dt = datetime.fromisoformat(row[3])
-            test_date_str = test_time_dt.strftime("%d %B %Y")
-            test_time_str = test_time_dt.strftime("%H:%M:%S")
+            # Gunakan last_edited untuk ambil tanggal
+            last_edited_dt = datetime.fromisoformat(row[8])
+            test_date_str = last_edited_dt.strftime("%d %B %Y")
         except ValueError:
             test_date_str = "Invalid"
-            test_time_str = "Invalid"
 
+        # Ambil waktu langsung dari string test_time
+        test_time_str = row[3] if row[3] else "Invalid"
         try:
             last_edited_dt = datetime.fromisoformat(row[8])
         except ValueError:
             last_edited_dt = datetime.now()
-
+        print(f"✅ Loaded from DB: ID={row[0]} | test_time={row[3]}")
+        print(f"✅ ID: {row[0]} | test_time: {test_time_str} | last_edited: {last_edited_dt}")
         result.append(CardViewModel(
             id=row[0],
             test_name=row[1],
@@ -133,12 +136,13 @@ def get_all_detections():
             fragment_outside=row[5],
             image=row[7],
             date=test_date_str,
-            time=test_time_str,
+            test_time=test_time_str,
             status=status,
             inference_time=row[9],
             tester_id=row[2]  # ⬅️ tambahkan ini agar update tidak gagal
         ))
-
+    
+    
     return result
 
 def get_detection(detection_id):
@@ -155,14 +159,13 @@ def update_detection(card_model):
         cursor.execute("""
             UPDATE detection_results
             SET test_name = ?, 
-                tester_id = ?, 
+                tester_id = ?,
                 fragment_inside = ?,
                 fragment_outside = ?, 
                 total_fragment = ?, 
                 image_path = ?, 
                 last_edited = ?, 
-                inference_time = ?, 
-                test_time = ?  -- ✅ Tambahkan field ini
+                inference_time = ?
             WHERE id = ?
         """, (
             card_model.test_name,
@@ -173,7 +176,6 @@ def update_detection(card_model):
             card_model.image_path,
             card_model.last_edited.isoformat() if isinstance(card_model.last_edited, datetime) else card_model.last_edited,
             card_model.inference_time,
-            card_model.test_time,  # ✅ Gunakan waktu yang sudah ada
             card_model.id
         ))
 

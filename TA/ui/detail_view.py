@@ -61,7 +61,7 @@ class DetailView(QWidget):
         card_layout = QHBoxLayout(card_container)
         card_layout.setAlignment(Qt.AlignCenter)
 
-        self.card_widget = CardWidget(self.selected_card)
+        self.card_widget = CardWidget(self.selected_card, readonly=True)
         self.card_widget.setFixedWidth(800)  # Ubah sesuai kebutuhan
         card_layout.addWidget(self.card_widget)
 

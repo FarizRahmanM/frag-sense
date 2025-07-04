@@ -40,9 +40,10 @@ class CardViewModel:
 
 class CardWidget(QWidget):
     validity_changed = Signal(bool)
-    def __init__(self, vm: CardViewModel):
+    def __init__(self, vm: CardViewModel, readonly=False):
         super().__init__()
         self.vm = vm
+        self.readonly = readonly
 
         self.layout = QVBoxLayout(self)
         self.setLayout(self.layout)
@@ -108,6 +109,9 @@ class CardWidget(QWidget):
             }
         """)
 
+        if self.readonly:
+            self.input_penguji.setEnabled(False)
+
         # Set nilai awal jika ada data sebelumnya
         if self.vm.tester_name:
             index = self.input_penguji.findText(self.vm.tester_name)
@@ -120,19 +124,19 @@ class CardWidget(QWidget):
         self.fragmen_inside_count.setAlignment(Qt.AlignCenter)
         self.fragmen_inside_count.setStyleSheet("font-size: 25px; font-weight: bold;")
 
-        inside_minus_btn = QPushButton("-")
-        inside_minus_btn.setFixedSize(40, 40)  # ⬅️ Ukuran diperbesar
-        inside_minus_btn.setStyleSheet("font-size: 20px; font-weight: bold;")
-        inside_minus_btn.clicked.connect(self.decrement_fragmen_inside)
-        inside_plus_btn = QPushButton("+")
-        inside_plus_btn.setFixedSize(40, 40)
-        inside_plus_btn.setStyleSheet("font-size: 20px; font-weight: bold;")
-        inside_plus_btn.clicked.connect(self.increment_fragmen_inside)
+        self.inside_minus_btn = QPushButton("-")
+        self.inside_minus_btn.setFixedSize(40, 40)  # ⬅️ Ukuran diperbesar
+        self.inside_minus_btn.setStyleSheet("font-size: 20px; font-weight: bold;")
+        self.inside_minus_btn.clicked.connect(self.decrement_fragmen_inside)
+        self.inside_plus_btn = QPushButton("+")
+        self.inside_plus_btn.setFixedSize(40, 40)
+        self.inside_plus_btn.setStyleSheet("font-size: 20px; font-weight: bold;")
+        self.inside_plus_btn.clicked.connect(self.increment_fragmen_inside)
 
         fragmen_inside_layout = QHBoxLayout()
-        fragmen_inside_layout.addWidget(inside_minus_btn)
+        fragmen_inside_layout.addWidget(self.inside_minus_btn)
         fragmen_inside_layout.addWidget(self.fragmen_inside_count)
-        fragmen_inside_layout.addWidget(inside_plus_btn)
+        fragmen_inside_layout.addWidget(self.inside_plus_btn)
 
         # Fragmen Tepi
         fragmen_outside_label = QLabel("Fragmen Tepi")
@@ -140,19 +144,19 @@ class CardWidget(QWidget):
         self.fragmen_outside_count.setAlignment(Qt.AlignCenter)
         self.fragmen_outside_count.setStyleSheet("font-size: 25px; font-weight: bold;")
 
-        outside_minus_btn = QPushButton("-")
-        outside_minus_btn.setFixedSize(40, 40)
-        outside_minus_btn.setStyleSheet("font-size: 20px; font-weight: bold;")
-        outside_minus_btn.clicked.connect(self.decrement_fragmen_outside)
-        outside_plus_btn = QPushButton("+")
-        outside_plus_btn.setFixedSize(40, 40)
-        outside_plus_btn.setStyleSheet("font-size: 20px; font-weight: bold;")
-        outside_plus_btn.clicked.connect(self.increment_fragmen_outside)
+        self.outside_minus_btn = QPushButton("-")
+        self.outside_minus_btn.setFixedSize(40, 40)
+        self.outside_minus_btn.setStyleSheet("font-size: 20px; font-weight: bold;")
+        self.outside_minus_btn.clicked.connect(self.decrement_fragmen_outside)
+        self.outside_plus_btn = QPushButton("+")
+        self.outside_plus_btn.setFixedSize(40, 40)
+        self.outside_plus_btn.setStyleSheet("font-size: 20px; font-weight: bold;")
+        self.outside_plus_btn.clicked.connect(self.increment_fragmen_outside)
 
         fragmen_outside_layout = QHBoxLayout()
-        fragmen_outside_layout.addWidget(outside_minus_btn)
+        fragmen_outside_layout.addWidget(self.outside_minus_btn)
         fragmen_outside_layout.addWidget(self.fragmen_outside_count)
-        fragmen_outside_layout.addWidget(outside_plus_btn)
+        fragmen_outside_layout.addWidget(self.outside_plus_btn)
 
         # Total fragmen (read-only)
         total_label = QLabel("Jumlah Fragmen Total")
@@ -212,6 +216,12 @@ class CardWidget(QWidget):
         self.validate_test_name()
         self.input_penguji.currentIndexChanged.connect(self.update_last_edited_time)
 
+        if self.readonly:
+            self.inside_minus_btn.hide()
+            self.inside_plus_btn.hide()
+            self.outside_minus_btn.hide()
+            self.outside_plus_btn.hide()
+
     def update_counts(self):
         total = self.vm.fragment_inside + 0.5 * self.vm.fragment_outside
         self.fragmen_inside_count.setText(str(self.vm.fragment_inside))
@@ -228,22 +238,31 @@ class CardWidget(QWidget):
             self.status_label.setStyleSheet("color: red; font-size: 20px; font-weight: bold;")
 
     def increment_fragmen_inside(self):
+        if self.readonly:
+            return
         self.vm.fragment_inside += 1
         self.update_counts()
         self.update_last_edited_time()
 
     def decrement_fragmen_inside(self):
+        if self.readonly:
+            return
         if self.vm.fragment_inside > 0:
             self.vm.fragment_inside -= 1
         self.update_counts()
         self.update_last_edited_time()
 
+    # Sama untuk outside
     def increment_fragmen_outside(self):
+        if self.readonly:
+            return
         self.vm.fragment_outside += 1
         self.update_counts()
         self.update_last_edited_time()
 
     def decrement_fragmen_outside(self):
+        if self.readonly:
+            return
         if self.vm.fragment_outside > 0:
             self.vm.fragment_outside -= 1
         self.update_counts()

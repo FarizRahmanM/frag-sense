@@ -8,7 +8,7 @@ import time
 import tempfile
 
 
-model = None
+model_cache = {}
 
 
 label_colors = {
@@ -16,12 +16,13 @@ label_colors = {
     1: (0, 0, 139),    # fragment_outside → biru tua
 }
 
-def get_model():
-    global model
-    if model is None:
-        model_path = resource_path("best.pt")
-        model = YOLO(model_path)
-    return model
+def get_model(model_name="best.pt"):
+    if model_name not in model_cache:
+        model_path = resource_path(os.path.join("models", model_name))
+        if not os.path.exists(model_path):
+            raise FileNotFoundError(f"Model tidak ditemukan: {model_path}")
+        model_cache[model_name] = YOLO(model_path)
+    return model_cache[model_name]
 
 def get_output_folder():
     user_data_dir = os.path.join(os.getenv('APPDATA'), "FragSense")  # Atau Documents
@@ -30,14 +31,14 @@ def get_output_folder():
         os.makedirs(output_folder)
     return output_folder
 
-def run_detection(img_path, edge_colors=None, centroid_colors=None, alpha=0.5):
+def run_detection(img_path, model_name="best.pt", edge_colors=None, centroid_colors=None, alpha=0.5):
     img_original = cv2.imread(img_path)
     if img_original is None:
         raise ValueError(f"Gagal membaca gambar: {img_path}")
 
     # Resize gambar ke 640x640
     img = cv2.resize(img_original, (640, 640))
-    model = get_model()
+    model = get_model(model_name)
 
     # ⏱️ Mulai hitung waktu inference
     start_time = time.time()

@@ -10,6 +10,7 @@ import datetime
 from typing import List  # opsional, jika kamu mau
 from utils import resource_path
 import re
+import os
 
 class ResultView(QWidget):
     validity_changed = Signal(bool)
@@ -203,24 +204,39 @@ class ResultView(QWidget):
             self.main_window.go_back()
 
     def save_button_click(self):
-        # Lazy import agar PyInstaller tidak otomatis include HistoryView kecuali dipakai
         from ui.history_view import HistoryView
+        import shutil, tempfile
+        from utils import get_output_folder
 
         # Simpan semua card yang ada di carousel
         for i in range(self.carousel.count()):
             container = self.carousel.widget(i)
-            card_widget = container.layout().itemAt(1).widget()  # Ambil CardWidget dari container
+            card_widget = container.layout().itemAt(1).widget()
             card_vm = card_widget.card_data()
+
+            # 🔁 Cek apakah path gambar masih di folder temporary
+            if card_vm.image_path and tempfile.gettempdir() in card_vm.image_path:
+                old_path = card_vm.image_path
+                filename = os.path.basename(old_path)
+                new_path = os.path.join(get_output_folder(), filename)
+
+                try:
+                    shutil.move(old_path, new_path)
+                    card_vm.image_path = new_path  # ✅ Perbarui path agar yang tersimpan di DB adalah path permanen
+                except Exception as e:
+                    print(f"[ERROR] Gagal memindahkan file dari temp ke permanen: {e}")
+
+            # Simpan ke database
             CardService.instance().save_or_update(card_vm)
 
         # Hapus semua card dari service dan UI
-        CardService.instance().cards.clear()  # Kosongkan daftar card
-        self.clear_stack()  # Bersihkan tampilan card di carousel
-        self.cards = []  # Pastikan properti lokal juga kosong
+        CardService.instance().cards.clear()
+        self.clear_stack()
+        self.cards = []
         self.current_index = 0
         self.update_arrow_visibility()
 
-        # Arahkan ke halaman riwayat setelah simpan
+        # Arahkan ke halaman riwayat
         if self.main_window:
             self.main_window.navigate(HistoryView(self.main_window))
 

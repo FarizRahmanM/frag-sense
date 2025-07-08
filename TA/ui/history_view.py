@@ -105,7 +105,11 @@ class HistoryView(QWidget):
         )
         self.delete_btn.clicked.connect(self.delete_selected_rows)
         
-
+        self.audit_trail_btn = QPushButton("Audit Trail")
+        self.audit_trail_btn.setStyleSheet("color: black; background: #FFE599; padding: 6px; font-weight: bold;")
+        self.audit_trail_btn.setFixedWidth(100)
+        self.audit_trail_btn.clicked.connect(self.show_audit_trail_dialog)
+        header_layout.addWidget(self.audit_trail_btn)
 
         header_layout.addWidget(self.sort_combo)
         # Checkbox indikator status (tidak bisa diklik)
@@ -538,3 +542,8 @@ class HistoryView(QWidget):
         self.reload_table()
         self.apply_filters()
         self.table.all_cards = self.filtered_cards
+
+    def show_audit_trail_dialog(self):
+        from services.audit_service import AuditTrailDialog
+        dialog = AuditTrailDialog(self)
+        dialog.exec()

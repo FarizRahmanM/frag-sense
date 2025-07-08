@@ -1,6 +1,6 @@
 from PySide6.QtWidgets import (
     QWidget, QLabel, QPushButton, QVBoxLayout, QHBoxLayout,
-    QScrollArea, QFrame, QFileDialog, QSizePolicy, QSpacerItem, QGridLayout, QProgressBar, QInputDialog
+    QScrollArea, QFrame, QFileDialog, QSizePolicy, QSpacerItem, QGridLayout, QProgressBar, QInputDialog, QComboBox
 )
 from PySide6.QtGui import QPixmap, QImage, QDragEnterEvent, QDropEvent, QMouseEvent, QIcon
 from PySide6.QtCore import Qt, QTimer, QSize
@@ -164,6 +164,29 @@ class MainView(QWidget):
         self.result_card_area = QVBoxLayout()
         main_layout.addLayout(self.result_card_area)
 
+
+        self.model_dropdown = QComboBox()
+
+        # Ambil semua file .pt dari folder "models"
+        model_folder = resource_path("models")
+        model_files = []
+
+        if os.path.exists(model_folder):
+            model_files = [f for f in os.listdir(model_folder) if f.endswith(".pt")]
+
+        # Tambahkan ke dropdown
+        self.model_dropdown.addItems(model_files)
+
+        # Styling
+        self.model_dropdown.setStyleSheet("padding: 5px; font-size: 12px;")
+
+        model_layout = QHBoxLayout()
+        model_layout.addStretch()
+        model_layout.addWidget(QLabel("Pilih Model:"))
+        model_layout.addWidget(self.model_dropdown)
+
+        main_layout.addLayout(model_layout)
+
         # Footer credit
         credit_label = QLabel("Created by: Fariz Rahman & Raihan Shidqi")
         credit_label.setStyleSheet("font-size: 15px; color: gray;")
@@ -233,6 +256,7 @@ class MainView(QWidget):
         self.take_photo_label.setText("Jepret")
         self.take_photo_label.setStyleSheet("color: #3B89FF; font-size: 12px; margin-top: 10px;")
         self.back_label.setVisible(True)
+        self.fragment_button.setVisible(False)
 
         self.timer = QTimer(self)
         self.timer.timeout.connect(self.update_camera_frame)
@@ -282,6 +306,7 @@ class MainView(QWidget):
         self.camera_feed.clear()
         self.camera_feed.setVisible(False)
         self.upload_area.setVisible(True)
+        self.fragment_button.setVisible(True)
         self.take_photo_label.setText("Ambil Foto Langsung")
         self.back_label.setVisible(False)
         
@@ -304,7 +329,7 @@ class MainView(QWidget):
 
     def process_next_image(self):
         if self.current_index >= len(self.cards):
-                # Semua selesai
+            # Semua selesai
             self.progress_bar.setVisible(False)
             self.fragment_button.setEnabled(True)
 
@@ -312,13 +337,18 @@ class MainView(QWidget):
                 self.detected_outputs,
                 self.detected_inside,
                 self.detected_outside,
-                self.inference_times  # ✅ Tambahkan ini
+                self.inference_times
             )
             return
 
         image_path = self.cards[self.current_index]
         abs_path = resource_path(image_path)
-        self.worker = DetectionWorker(abs_path)
+
+        # ✅ Ambil model yang dipilih dari dropdown
+        model_name = self.model_dropdown.currentText()
+
+        # ✅ Kirim model_name ke DetectionWorker
+        self.worker = DetectionWorker(abs_path, model_name=model_name)
         self.worker.finished.connect(self.on_detection_finished)
         self.worker.error_occurred.connect(self.on_detection_error)
         self.worker.start()

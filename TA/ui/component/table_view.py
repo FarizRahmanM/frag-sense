@@ -143,7 +143,7 @@ class TableWidget(QWidget):
         waktu_label.setAlignment(Qt.AlignCenter)
         grid.addWidget(waktu_label, 0, 3)
 
-        fragmen_label = QLabel(str(card.total_fragments))
+        fragmen_label = QLabel(f"{card.total_fragments:.1f}")
         fragmen_label.setAlignment(Qt.AlignCenter)
         grid.addWidget(fragmen_label, 0, 4)
 

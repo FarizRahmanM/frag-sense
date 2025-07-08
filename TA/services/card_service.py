@@ -28,11 +28,12 @@ class CardService:
 
             create_detection(
             test_name=card.test_name,
-            tester_id=card.tester_id,  # ✅ Gunakan tester_id
+            tester_id=card.tester_id,
             fragment_inside=card.fragment_inside,
             fragment_outside=card.fragment_outside,
             total_fragment=card.total_fragments,
             image_path=card.image_path,
+            numbered_image_path=card.numbered_image_path,  # 🆕 ditambahkan
             inference_time=card.inference_time,
             last_edited=last_edited,
             test_time=card.test_time

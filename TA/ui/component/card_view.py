@@ -17,7 +17,7 @@ class ClickableLabel(QLabel):
 
 
 class CardViewModel:
-    def __init__(self, id=None, test_name=None, date=None,  test_time=None, total_fragments=0, image=None,
+    def __init__(self, id=None, test_name=None, date=None,  test_time=None, total_fragments=0, image=None,  numbered_image=None,
                  tester_name=None, fragment_inside=0, fragment_outside=0, status="", last_edited=None, tester_id=None, inference_time=None):
         self.id = id
         self.test_name = test_name
@@ -25,6 +25,7 @@ class CardViewModel:
         self.test_time = test_time
         self.jumlah_fragmen = total_fragments
         self.image_path = image
+        self.numbered_image_path = numbered_image
         self.tester_id = tester_id
         self.tester_name = tester_name
         self.fragment_inside = fragment_inside
@@ -61,11 +62,18 @@ class CardWidget(QWidget):
         self.image_label.setFixedWidth(445)
         self.image_label.setAlignment(Qt.AlignLeft | Qt.AlignTop)
 
+        self.current_image_type = "dot"
+
         # Koneksi klik ke pop-up
         self.image_label.clicked.connect(self.show_image_popup)
 
         left_container = QVBoxLayout()
         left_container.addWidget(self.image_label)
+        self.switch_button = QPushButton("Tampilkan Nomor")
+        self.switch_button.setFixedWidth(150)
+        self.switch_button.setStyleSheet("font-size: 12px;")
+        self.switch_button.clicked.connect(self.toggle_image)
+        left_container.addWidget(self.switch_button)
         left_widget = QWidget()
         left_widget.setLayout(left_container)
         left_widget.setFixedWidth(445)
@@ -272,7 +280,13 @@ class CardWidget(QWidget):
         if not self.vm.image_path:
             return
 
-        popup = ImagePopup(self.vm.image_path)
+        # Gunakan gambar sesuai yang sedang aktif
+        if self.current_image_type == "number" and self.vm.numbered_image_path:
+            path = self.vm.numbered_image_path
+        else:
+            path = self.vm.image_path
+
+        popup = ImagePopup(path)
         popup.exec()
 
     def card_data(self):
@@ -347,6 +361,21 @@ class CardWidget(QWidget):
 
         # Kirim sinyal
         self.validity_changed.emit(valid)
+    
+
+    def toggle_image(self):
+        if self.current_image_type == "dot":
+            if self.vm.numbered_image_path:
+                pixmap = QPixmap(resource_path(self.vm.numbered_image_path)).scaled(400, 220, Qt.KeepAspectRatio)
+                self.image_label.setPixmap(pixmap)
+                self.current_image_type = "number"
+                self.switch_button.setText("Tampilkan Titik")
+        else:
+            if self.vm.image_path:
+                pixmap = QPixmap(resource_path(self.vm.image_path)).scaled(400, 220, Qt.KeepAspectRatio)
+                self.image_label.setPixmap(pixmap)
+                self.current_image_type = "dot"
+                self.switch_button.setText("Tampilkan Nomor")
 
 class ImagePopup(QDialog):
     def __init__(self, image_path):

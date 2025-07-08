@@ -46,18 +46,19 @@ def init_db():
         # Buat tabel detection_results
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS detection_results (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                test_name TEXT,
-                tester_id INTEGER,
-                test_time TEXT,
-                fragment_inside INTEGER,
-                fragment_outside INTEGER,
-                total_fragment INTEGER,
-                image_path TEXT,
-                last_edited TEXT,
-                inference_time REAL,
-                FOREIGN KEY (tester_id) REFERENCES testers(id)
-            )
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            test_name TEXT NOT NULL,
+            tester_id INTEGER NOT NULL,
+            test_time TEXT,                         -- waktu saat uji dilakukan (format: HH:MM:SS)
+            fragment_inside INTEGER DEFAULT 0,
+            fragment_outside INTEGER DEFAULT 0,
+            total_fragment REAL DEFAULT 0,
+            image_path TEXT,                        -- gambar hasil deteksi dengan titik
+            numbered_image_path TEXT,              -- 🔁 gambar hasil deteksi dengan angka
+            last_edited TEXT,                       -- timestamp ISO format
+            inference_time REAL DEFAULT 0,          -- durasi proses deteksi
+            FOREIGN KEY (tester_id) REFERENCES testers(id)
+        );
         """)
 
         # ✅ Tambahkan tabel audit_log di sini
@@ -90,7 +91,7 @@ def init_db():
         conn.commit()
 
 def create_detection(test_name, tester_id, fragment_inside, fragment_outside, total_fragment,
-                     image_path, inference_time=None, last_edited=None, test_time=None):  # 🆕 Tambahkan test_time
+                     image_path, numbered_image_path=None, inference_time=None, last_edited=None, test_time=None):  # 🆕 Tambahkan test_time
     print("🔵 INSERT (create_detection) dipanggil")
     with db_lock:
         with connect() as conn:
@@ -103,11 +104,13 @@ def create_detection(test_name, tester_id, fragment_inside, fragment_outside, to
             cursor.execute("""
                 INSERT INTO detection_results (
                     test_name, tester_id, test_time, fragment_inside,
-                    fragment_outside, total_fragment, image_path, last_edited, inference_time
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    fragment_outside, total_fragment, image_path, 
+                    numbered_image_path, last_edited, inference_time
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
                 test_name, tester_id, test_time, fragment_inside,
-                fragment_outside, total_fragment, image_path, last_edited, inference_time
+                fragment_outside, total_fragment, image_path, 
+                numbered_image_path, last_edited, inference_time
             ))
             conn.commit()
             detection_id = cursor.lastrowid
@@ -123,10 +126,24 @@ def create_detection(test_name, tester_id, fragment_inside, fragment_outside, to
 def get_all_detections():
     with db_lock:
         conn = sqlite3.connect(get_database_path())
+        conn.row_factory = sqlite3.Row  # 🆕 Akses kolom pakai nama
         cur = conn.cursor()
 
         cur.execute("""
-            SELECT d.*, t.name FROM detection_results d
+            SELECT 
+                d.id,
+                d.test_name,
+                d.tester_id,
+                d.test_time,
+                d.fragment_inside,
+                d.fragment_outside,
+                d.total_fragment,
+                d.image_path,
+                d.numbered_image_path,
+                d.last_edited,
+                d.inference_time,
+                t.name AS tester_name
+            FROM detection_results d
             LEFT JOIN testers t ON d.tester_id = t.id
         """)
         rows = cur.fetchall()
@@ -134,41 +151,34 @@ def get_all_detections():
 
         result = []
         for row in rows:
-            total_fragmen = row[4] + (row[5] / 2)
+            total_fragmen = row["fragment_inside"] + (row["fragment_outside"] / 2)
             status = "PASS" if 40 <= total_fragmen <= 400 else "FAIL"
 
             try:
-                # Gunakan last_edited untuk ambil tanggal
-                last_edited_dt = datetime.fromisoformat(row[8])
+                last_edited_dt = datetime.fromisoformat(row["last_edited"])
                 test_date_str = last_edited_dt.strftime("%d %B %Y")
-            except ValueError:
+            except Exception:
                 test_date_str = "Invalid"
-
-            # Ambil waktu langsung dari string test_time
-            test_time_str = row[3] if row[3] else "Invalid"
-            try:
-                last_edited_dt = datetime.fromisoformat(row[8])
-            except ValueError:
                 last_edited_dt = datetime.now()
-            print(f"✅ Loaded from DB: ID={row[0]} | test_time={row[3]}")
-            print(f"✅ ID: {row[0]} | test_time: {test_time_str} | last_edited: {last_edited_dt}")
+
             result.append(CardViewModel(
-                id=row[0],
-                test_name=row[1],
-                tester_name=row[10],
+                id=row["id"],
+                test_name=row["test_name"],
+                tester_id=row["tester_id"],
+                test_time=row["test_time"] or "Invalid",
+                fragment_inside=row["fragment_inside"],
+                fragment_outside=row["fragment_outside"],
+                image=row["image_path"],
+                numbered_image=row["numbered_image_path"],
                 last_edited=last_edited_dt,
-                fragment_inside=row[4],
-                fragment_outside=row[5],
-                image=row[7],
+                inference_time=row["inference_time"],
+                tester_name=row["tester_name"],
                 date=test_date_str,
-                test_time=test_time_str,
-                status=status,
-                inference_time=row[9],
-                tester_id=row[2]  # ⬅️ tambahkan ini agar update tidak gagal
+                status=status
             ))
-        
-        
+
         return result
+
 
 def get_detection(detection_id):
     with connect() as conn:
@@ -190,6 +200,7 @@ def update_detection(card_model):
                     fragment_outside = ?, 
                     total_fragment = ?, 
                     image_path = ?, 
+                    numbered_image_path = ?,
                     last_edited = ?, 
                     inference_time = ?
                 WHERE id = ?
@@ -200,6 +211,7 @@ def update_detection(card_model):
                 card_model.fragment_outside,
                 card_model.total_fragments,
                 card_model.image_path,
+                card_model.numbered_image_path,
                 card_model.last_edited.isoformat() if isinstance(card_model.last_edited, datetime) else card_model.last_edited,
                 card_model.inference_time,
                 card_model.id

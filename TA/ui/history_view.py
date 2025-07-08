@@ -178,7 +178,8 @@ class HistoryView(QWidget):
                     test_time=row.test_time,  # ✅ Gunakan field asli dari DB
                     status=status,
                     last_edited=row.last_edited,
-                    inference_time=row.inference_time
+                    inference_time=row.inference_time,
+                    numbered_image=row.numbered_image_path
                 )
             )
 
@@ -242,15 +243,16 @@ class HistoryView(QWidget):
             data = []
             for card in selected_cards:
                 data.append({
-                    "Nama Pengujian": card.test_name,
-                    "Nama Penguji": card.tester_name,
-                    "Tanggal": card.test_date,
-                    "Waktu": card.test_time,
-                    "Jumlah Fragmen (Dalam)": card.fragment_inside,
-                    "Jumlah Fragmen (Luar)": card.fragment_outside,
-                    "Jumlah Fragmen (Total)": round(card.fragment_inside + (card.fragment_outside / 2), 1),
-                    "Path Gambar": card.image_path
-                })
+                "Nama Pengujian": card.test_name,
+                "Nama Penguji": card.tester_name,
+                "Tanggal": card.test_date,
+                "Waktu": card.test_time,
+                "Jumlah Fragmen (Dalam)": card.fragment_inside,
+                "Jumlah Fragmen (Luar)": card.fragment_outside,
+                "Jumlah Fragmen (Total)": round(card.fragment_inside + (card.fragment_outside / 2), 1),
+                "Path Gambar": card.image_path,
+                "Path Gambar (Angka)": card.numbered_image_path  # ← Tambahan ini
+            })
 
             df = pd.DataFrame(data)
             df.to_excel(path, index=False)
@@ -270,18 +272,19 @@ class HistoryView(QWidget):
 
 
             card_viewmodels.append(CardViewModel(
-                id=row.id,
-                test_name=row.test_name,
-                tester_name=row.tester_name,
-                fragment_inside=row.fragment_inside,
-                fragment_outside=row.fragment_outside,
-                image=row.image_path,
-                date=row.test_date,  # ✅ Bukan dari last_edited
-                test_time=row.test_time,  # ✅ Bukan dari last_edited
-                status=status,
-                last_edited=row.last_edited,
-                inference_time=row.inference_time
-            ))
+            id=row.id,
+            test_name=row.test_name,
+            tester_name=row.tester_name,
+            fragment_inside=row.fragment_inside,
+            fragment_outside=row.fragment_outside,
+            image=row.image_path,
+            date=row.test_date,
+            test_time=row.test_time,
+            status=status,
+            last_edited=row.last_edited,
+            inference_time=row.inference_time,
+            numbered_image=row.numbered_image_path  # ✅ tambahkan ini
+        ))
 
         current_sort = self.sort_combo.currentText()
         self.sort_combo.setStyleSheet("padding: 6px; font-weight: bold; border: 1px solid black;")

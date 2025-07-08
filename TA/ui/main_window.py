@@ -51,8 +51,14 @@ class MainWindow(QMainWindow):
     def show_history(self):
         self.navigate(self.history_view)
 
-    def show_result(self, image_paths, fragments_inside, fragments_outside, inference_times):
-        self.result_view.set_result(image_paths, fragments_inside, fragments_outside, inference_times)
+    def show_result(self, image_paths_dots, image_paths_numbers, fragments_inside, fragments_outside, inference_times):
+        self.result_view.set_result(
+            image_paths_dots,
+            image_paths_numbers,
+            fragments_inside,
+            fragments_outside,
+            inference_times
+        )
         self.navigate(self.result_view)
 
     def go_back(self):

@@ -101,15 +101,15 @@ class ResultView(QWidget):
         self.update_arrow_visibility()
         self.card_widgets = []
 
-    def set_result(self, image_paths: List[str], fragments_inside: List[int],
-               fragments_outside: List[int], inference_times: List[float],
-               last_edited=None, preserve_existing_time=False):
+    def set_result(self, image_paths_dots: List[str], image_paths_numbers: List[str],
+               fragments_inside: List[int], fragments_outside: List[int],
+               inference_times: List[float], last_edited=None, preserve_existing_time=False):
 
         now = datetime.datetime.now()
         test_date = now.strftime("%d %B %Y")
         test_time = now.strftime("%H:%M:%S")
 
-        for i, image_path in enumerate(image_paths):
+        for i in range(len(image_paths_dots)):
             fragment_inside = fragments_inside[i]
             fragment_outside = fragments_outside[i]
             inference_time = inference_times[i]
@@ -117,20 +117,23 @@ class ResultView(QWidget):
 
             status = "PASS" if 40 <= total_fragments <= 400 else "FAIL"
 
-            image_path_full = resource_path(image_path)
+            image_path_dots = resource_path(image_paths_dots[i])
+            image_path_numbers = resource_path(image_paths_numbers[i])
 
             card_vm = CardViewModel(
                 test_name=f"Hasil Deteksi {i + 1}",
                 date=self.cards[i].test_date if preserve_existing_time and i < len(self.cards) else test_date,
                 test_time=self.cards[i].test_time if preserve_existing_time and i < len(self.cards) else test_time,
                 total_fragments=total_fragments,
-                image=image_path_full,
+                image=image_path_dots,
+                numbered_image=image_path_numbers,  # ✅ gunakan ini juga
                 fragment_inside=fragment_inside,
                 fragment_outside=fragment_outside,
                 last_edited=last_edited,
                 status=status,
-                inference_time=inference_time  # ✅
+                inference_time=inference_time
             )
+
             CardService.instance().add_card(card_vm)
 
         self.cards = CardService.instance().cards
@@ -208,25 +211,44 @@ class ResultView(QWidget):
         import shutil, tempfile
         from utils import get_output_folder
 
+        # Buat folder dots dan numbers jika belum ada
+        base_output = get_output_folder()
+        dots_folder = os.path.join(base_output, "dots")
+        numbers_folder = os.path.join(base_output, "numbers")
+        os.makedirs(dots_folder, exist_ok=True)
+        os.makedirs(numbers_folder, exist_ok=True)
+
         # Simpan semua card yang ada di carousel
         for i in range(self.carousel.count()):
             container = self.carousel.widget(i)
             card_widget = container.layout().itemAt(1).widget()
             card_vm = card_widget.card_data()
 
-            # 🔁 Cek apakah path gambar masih di folder temporary
+            # 🔁 Cek apakah path gambar titik masih di folder temp
             if card_vm.image_path and tempfile.gettempdir() in card_vm.image_path:
                 old_path = card_vm.image_path
                 filename = os.path.basename(old_path)
-                new_path = os.path.join(get_output_folder(), filename)
+                new_path = os.path.join(dots_folder, filename)  # ✅ ke folder 'dots'
 
                 try:
                     shutil.move(old_path, new_path)
-                    card_vm.image_path = new_path  # ✅ Perbarui path agar yang tersimpan di DB adalah path permanen
+                    card_vm.image_path = new_path
                 except Exception as e:
-                    print(f"[ERROR] Gagal memindahkan file dari temp ke permanen: {e}")
+                    print(f"[ERROR] Gagal memindahkan file titik: {e}")
 
-            # Simpan ke database
+            # 🔁 Cek apakah path gambar angka juga masih di folder temp
+            if hasattr(card_vm, "numbered_image") and card_vm.numbered_image and tempfile.gettempdir() in card_vm.numbered_image:
+                old_numbered = card_vm.numbered_image
+                filename_numbered = os.path.basename(old_numbered)
+                new_numbered_path = os.path.join(numbers_folder, filename_numbered)  # ✅ ke folder 'numbers'
+
+                try:
+                    shutil.move(old_numbered, new_numbered_path)
+                    card_vm.numbered_image = new_numbered_path
+                except Exception as e:
+                    print(f"[ERROR] Gagal memindahkan file angka: {e}")
+
+            # ✅ Simpan path permanen ke database
             CardService.instance().save_or_update(card_vm)
 
         # Hapus semua card dari service dan UI

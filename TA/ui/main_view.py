@@ -315,7 +315,8 @@ class MainView(QWidget):
             return
 
         self.current_index = 0
-        self.detected_outputs = []
+        self.detected_outputs_dots = []     # ✅ inisialisasi untuk gambar dengan titik
+        self.detected_outputs_numbers = []
         self.detected_inside = []
         self.detected_outside = []
         self.inference_times = []
@@ -334,7 +335,8 @@ class MainView(QWidget):
             self.fragment_button.setEnabled(True)
 
             self.show_result_callback(
-                self.detected_outputs,
+                self.detected_outputs_dots,
+                self.detected_outputs_numbers,
                 self.detected_inside,
                 self.detected_outside,
                 self.inference_times
@@ -354,8 +356,9 @@ class MainView(QWidget):
         self.worker.start()
 
 
-    def on_detection_finished(self, output_path, inside, outside, inference_time):
-        self.detected_outputs.append(output_path)
+    def on_detection_finished(self, output_path_dots, output_path_numbers, inside, outside, inference_time):
+        self.detected_outputs_dots.append(output_path_dots)
+        self.detected_outputs_numbers.append(output_path_numbers)
         self.detected_inside.append(inside)
         self.detected_outside.append(outside)
         self.inference_times.append(inference_time)

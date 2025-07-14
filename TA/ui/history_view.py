@@ -228,6 +228,7 @@ class HistoryView(QWidget):
 
     def export_selected_to_excel(self):
         selected_cards = self.table.get_selected_cards()
+        print("Selected (export):", selected_cards)
 
         if not selected_cards:
             QMessageBox.warning(self, "Tidak Ada Data", "Pilih minimal satu baris untuk diekspor.")
@@ -310,6 +311,7 @@ class HistoryView(QWidget):
 
     def delete_selected_rows(self):
         selected_cards = self.table.get_selected_cards()
+        print("Selected (delete):", selected_cards)
 
         if not selected_cards:
             QMessageBox.warning(self, "Tidak Ada Data", "Pilih minimal satu baris yang ingin dihapus.")

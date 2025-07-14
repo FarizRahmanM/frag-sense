@@ -64,13 +64,14 @@ def init_db():
         # ✅ Tambahkan tabel audit_log di sini
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS audit_log (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                action TEXT NOT NULL,
-                detection_id INTEGER,
-                tester_id INTEGER,
-                timestamp TEXT NOT NULL,
-                detail TEXT
-            )
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            action TEXT NOT NULL,
+            detection_id INTEGER,
+            tester_id INTEGER,
+            tester_name TEXT,
+            timestamp TEXT NOT NULL,
+            detail TEXT
+        )
         """)
 
         # Tambahkan nama-nama tester default
@@ -231,13 +232,24 @@ def update_detection(card_model):
 def delete_detection(detection_id):
     with connect() as conn:
         cursor = conn.cursor()
+
+        # Ambil tester_id dulu sebelum dihapus
+        cursor.execute("SELECT tester_id FROM detection_results WHERE id = ?", (detection_id,))
+        row = cursor.fetchone()
+        tester_id = row[0] if row else None
+
+        # Hapus data
         cursor.execute("DELETE FROM detection_results WHERE id = ?", (detection_id,))
         conn.commit()
+
+        # Log lengkap termasuk tester_id
         log_action(
             action="delete",
             detection_id=detection_id,
+            tester_id=tester_id,
             detail=f"Menghapus data uji dengan ID {detection_id}"
         )
+
         return cursor.rowcount > 0
     
 
@@ -275,20 +287,23 @@ def get_tester_name_by_id(tester_id):
 def log_action(action, detection_id=None, tester_id=None, detail="", external_conn=None):
     timestamp = datetime.now().isoformat()
 
+    # Ambil nama penguji sekarang juga, agar tetap ada meskipun pengujinya dihapus nanti
+    tester_name = get_tester_name_by_id(tester_id) if tester_id else None
+
     if external_conn:
         cursor = external_conn.cursor()
         cursor.execute("""
-            INSERT INTO audit_log (action, detection_id, tester_id, timestamp, detail)
-            VALUES (?, ?, ?, ?, ?)
-        """, (action, detection_id, tester_id, timestamp, detail))
+            INSERT INTO audit_log (action, detection_id, tester_id, tester_name, timestamp, detail)
+            VALUES (?, ?, ?, ?, ?, ?)
+        """, (action, detection_id, tester_id, tester_name, timestamp, detail))
     else:
         with db_lock:
             with connect() as conn:
                 cursor = conn.cursor()
                 cursor.execute("""
-                    INSERT INTO audit_log (action, detection_id, tester_id, timestamp, detail)
-                    VALUES (?, ?, ?, ?, ?)
-                """, (action, detection_id, tester_id, timestamp, detail))
+                    INSERT INTO audit_log (action, detection_id, tester_id, tester_name, timestamp, detail)
+                    VALUES (?, ?, ?, ?, ?, ?)
+                """, (action, detection_id, tester_id, tester_name, timestamp, detail))
                 conn.commit()
 
     
@@ -296,10 +311,9 @@ def get_all_audit_logs():
     with connect() as conn:
         cursor = conn.cursor()
         cursor.execute("""
-            SELECT a.id, a.action, a.detection_id, a.tester_id, a.timestamp, a.detail, t.name
-            FROM audit_log a
-            LEFT JOIN testers t ON a.tester_id = t.id
-            ORDER BY a.timestamp DESC
+            SELECT id, action, detection_id, tester_id, tester_name, timestamp, detail
+            FROM audit_log
+            ORDER BY timestamp DESC
         """)
         rows = cursor.fetchall()
 
@@ -310,9 +324,9 @@ def get_all_audit_logs():
                 'action': row[1],
                 'detection_id': row[2],
                 'tester_id': row[3],
-                'timestamp': row[4],
-                'detail': row[5],
-                'tester_name': row[6]
+                'tester_name': row[4],  # sudah langsung dari kolom
+                'timestamp': row[5],
+                'detail': row[6]
             })
 
         return result

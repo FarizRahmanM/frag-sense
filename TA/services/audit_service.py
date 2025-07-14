@@ -6,7 +6,7 @@ class AuditTrailDialog(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setWindowTitle("Audit Trail")
-        self.resize(600, 400)  # Ukuran lebih besar agar lega
+        self.resize(700, 400)  # Tambah lebar agar muat kolom nama
 
         layout = QVBoxLayout(self)
 
@@ -17,26 +17,27 @@ class AuditTrailDialog(QDialog):
         table = QTableWidget()
         logs = get_all_audit_logs()
 
-        table.setColumnCount(3)
-        table.setHorizontalHeaderLabels(["Aksi", "Waktu", "Detail"])
+        table.setColumnCount(4)
+        table.setHorizontalHeaderLabels(["Aksi", "Waktu", "Penguji", "Detail"])
         table.setRowCount(len(logs))
 
         for i, log in enumerate(logs):
-            table.setItem(i, 0, QTableWidgetItem(log['action']))
-            table.setItem(i, 1, QTableWidgetItem(log['timestamp']))
+            table.setItem(i, 0, QTableWidgetItem(log.get('action', '-')))
+            table.setItem(i, 1, QTableWidgetItem(log.get('timestamp', '-')))
 
-            detail_item = QTableWidgetItem(log['detail'])
+            # Nama penguji aman
+            tester_name = log.get('tester_name') or "-"
+            table.setItem(i, 2, QTableWidgetItem(tester_name))
+
+            detail_item = QTableWidgetItem(log.get('detail', '-'))
             detail_item.setTextAlignment(Qt.AlignLeft | Qt.AlignTop)
-            detail_item.setFlags(detail_item.flags() ^ Qt.ItemIsEditable)  # opsional: non-editable
-            table.setItem(i, 2, detail_item)
+            detail_item.setFlags(detail_item.flags() ^ Qt.ItemIsEditable)
+            table.setItem(i, 3, detail_item)
 
-        # ✅ Pastikan teks panjang dibungkus
         table.setWordWrap(True)
         table.resizeColumnsToContents()
         table.resizeRowsToContents()
-
-        # ✅ Scrollbar otomatis jika perlu
         table.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
         table.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
 
-        layout.addWidget(table)
+        layout.addWidget(table) 

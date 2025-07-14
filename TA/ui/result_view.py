@@ -117,8 +117,8 @@ class ResultView(QWidget):
 
             status = "PASS" if 40 <= total_fragments <= 400 else "FAIL"
 
-            image_path_dots = resource_path(image_paths_dots[i])
-            image_path_numbers = resource_path(image_paths_numbers[i])
+            image_path_dots = image_paths_dots[i]
+            image_path_numbers = image_paths_numbers[i]
 
             card_vm = CardViewModel(
                 test_name=f"Hasil Deteksi {i + 1}",
@@ -236,17 +236,20 @@ class ResultView(QWidget):
                 except Exception as e:
                     print(f"[ERROR] Gagal memindahkan file titik: {e}")
 
-            # 🔁 Cek apakah path gambar angka juga masih di folder temp
-            if hasattr(card_vm, "numbered_image") and card_vm.numbered_image and tempfile.gettempdir() in card_vm.numbered_image:
-                old_numbered = card_vm.numbered_image
-                filename_numbered = os.path.basename(old_numbered)
-                new_numbered_path = os.path.join(numbers_folder, filename_numbered)  # ✅ ke folder 'numbers'
+            
 
+            if card_vm.numbered_image_path and tempfile.gettempdir() in card_vm.numbered_image_path:
+                old_numbered = card_vm.numbered_image_path
+                filename_numbered = os.path.basename(old_numbered)
+                new_numbered_path = os.path.join(numbers_folder, filename_numbered)
                 try:
                     shutil.move(old_numbered, new_numbered_path)
-                    card_vm.numbered_image = new_numbered_path
+                    card_vm.numbered_image_path = new_numbered_path
+                    print(f"[DEBUG] File angka berhasil dipindah ke: {new_numbered_path}")
                 except Exception as e:
                     print(f"[ERROR] Gagal memindahkan file angka: {e}")
+                    import traceback
+                    traceback.print_exc()
 
             # ✅ Simpan path permanen ke database
             CardService.instance().save_or_update(card_vm)
